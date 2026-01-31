@@ -100,15 +100,11 @@ export default function Home() {
           </form>
         </div>
 
-        {/* Features Grid */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white/60 p-4 rounded-2xl flex flex-col items-center text-center gap-2 border border-white/40 shadow-sm">
-            <Shield className="w-6 h-6 text-green-600" />
-            <span className="text-xs font-medium text-muted-foreground">End-to-End Encrypted</span>
-          </div>
-          <div className="bg-white/60 p-4 rounded-2xl flex flex-col items-center text-center gap-2 border border-white/40 shadow-sm">
-            <Smartphone className="w-6 h-6 text-indigo-600" />
-            <span className="text-xs font-medium text-muted-foreground">Cross-Device Ready</span>
+        {/* Features Tagline */}
+        <div className="flex justify-center">
+          <div className="bg-white/60 px-6 py-3 rounded-2xl flex items-center text-center gap-3 border border-white/40 shadow-sm">
+            <Shield className="w-5 h-5 text-primary" />
+            <span className="text-sm font-semibold text-primary uppercase tracking-wider">Labs Made Easy</span>
           </div>
         </div>
       </motion.div>
