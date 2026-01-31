@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 
 // Supabase client for serverless
 const supabaseUrl = process.env.SUPABASE_URL || "https://ndbercohymnqzwcdrllg.supabase.co";
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "sb_secret_hU1qN082CKRfFJpUXRwAcg_xWK3k1S4";
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5kYmVyY29oeW1ucXp3Y2RybGxnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTgzNTYyMiwiZXhwIjoyMDg1NDExNjIyfQ.M0J_2_92xOZa0DaQeg5FdEAwguX9sqDfG3cXgYu11kE";
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -42,8 +42,27 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET(request: Request, { params }: { params: { code: string } }) {
-  const code = Array.isArray(params.code) ? params.code[0] : params.code;
+export async function GET(request: Request, context: any) {
+  // Handle params safely
+  let code: string | undefined;
+  
+  if (context && context.params) {
+    const params = context.params;
+    code = Array.isArray(params.code) ? params.code[0] : params.code;
+  } else {
+    // Try to get code from URL path
+    const url = new URL(request.url);
+    const pathParts = url.pathname.split("/");
+    code = pathParts[pathParts.length - 1];
+  }
+  
+  // If no code provided, return 404
+  if (!code || code === "sessions") {
+    return new Response(JSON.stringify({ message: "Session code required" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
   
   try {
     const { data, error } = await supabase
