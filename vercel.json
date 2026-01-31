@@ -12,12 +12,5 @@
         { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
       ]
     }
-  ],
-  "env": {
-    "CLOUDINARY_CLOUD_NAME": "@cloudinary-cloud-name",
-    "CLOUDINARY_API_KEY": "@cloudinary-api-key",
-    "CLOUDINARY_API_SECRET": "@cloudinary-api-secret",
-    "SUPABASE_URL": "@supabase-url",
-    "SUPABASE_SERVICE_ROLE_KEY": "@supabase-service-role-key"
-  }
+  ]
 }
