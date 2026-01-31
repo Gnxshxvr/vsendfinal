@@ -1,15 +1,15 @@
-
 import type { Express } from "express";
 import type { Server } from "http";
-import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { api, errorSchemas } from "@shared/routes";
 import { WS_EVENTS } from "@shared/schema";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { uploadToCloudinary, deleteFromCloudinary } from "./cloudinary";
+import { createSession, getSessionByCode, saveFile, getFiles, getFile, supabase } from "./supabase";
 
-// Ensure uploads directory exists
+// Ensure uploads directory exists for temp storage
 const uploadDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir);
@@ -26,13 +26,18 @@ export async function registerRoutes(
 ): Promise<Server> {
   // Session Routes
   app.post(api.sessions.create.path, async (req, res) => {
-    const session = await storage.createSession();
-    res.status(201).json(session);
+    try {
+      const session = await createSession();
+      res.status(201).json(session);
+    } catch (error) {
+      console.error("Error creating session:", error);
+      res.status(500).json({ message: "Failed to create session" });
+    }
   });
 
   app.get(api.sessions.join.path, async (req, res) => {
-    const code = req.params.code;
-    const session = await storage.getSessionByCode(code);
+    const code = Array.isArray(req.params.code) ? req.params.code[0] : req.params.code;
+    const session = await getSessionByCode(code);
     
     if (!session) {
       return res.status(404).json({ message: "Session not found or expired" });
@@ -41,117 +46,76 @@ export async function registerRoutes(
     res.json(session);
   });
 
-  // File Routes
+  // File Routes with Cloudinary + Supabase
   app.post(api.files.upload.path, upload.single("file"), async (req, res) => {
-    const code = req.params.code;
-    const session = await storage.getSessionByCode(code);
+    const code = Array.isArray(req.params.code) ? req.params.code[0] : req.params.code;
+    const session = await getSessionByCode(code);
     
     if (!session || !req.file) {
       return res.status(400).json({ message: "Invalid session or file" });
     }
 
-    const file = await storage.saveFile({
-      id: 0, // Assigned by storage
-      sessionId: session.id,
-      filename: req.file.filename, // Multer filename
-      originalName: req.file.originalname,
-      mimeType: req.file.mimetype,
-      size: req.file.size,
-      uploadedAt: new Date(),
-    });
+    try {
+      // Read file buffer and upload to Cloudinary
+      const fileBuffer = fs.readFileSync(req.file.path);
+      const cloudinaryResult = await uploadToCloudinary(
+        fileBuffer,
+        req.file.originalname,
+        req.file.mimetype
+      );
 
-    // Notify connected clients in this session
-    broadcastToSession(session.id, {
-      type: WS_EVENTS.FILE_UPLOADED,
-      file,
-    });
+      // Save file metadata to Supabase
+      const file = await saveFile({
+        sessionId: session.id,
+        originalName: req.file.originalname,
+        mimeType: req.file.mimetype,
+        size: req.file.size,
+        cloudinaryUrl: cloudinaryResult.secure_url,
+        cloudinaryPublicId: cloudinaryResult.public_id,
+        resourceType: cloudinaryResult.resource_type,
+      });
 
-    res.status(201).json(file);
+      // Clean up temp file
+      fs.unlinkSync(req.file.path);
+
+      // Broadcast to all clients in this session via Supabase Realtime
+      await supabase.channel(`session:${session.code}`).send({
+        type: "broadcast",
+        event: "file_uploaded",
+        payload: { file: { id: file.id, original_name: file.original_name } },
+      });
+
+      res.status(201).json(file);
+    } catch (error) {
+      console.error("Error uploading file:", error);
+      res.status(500).json({ message: "Failed to upload file" });
+    }
   });
 
   app.get(api.files.list.path, async (req, res) => {
-    const code = req.params.code;
-    const session = await storage.getSessionByCode(code);
+    const code = Array.isArray(req.params.code) ? req.params.code[0] : req.params.code;
+    const session = await getSessionByCode(code);
     
     if (!session) {
       return res.status(404).json({ message: "Session not found" });
     }
 
-    const files = await storage.getFiles(session.id);
+    const files = await getFiles(session.id);
     res.json(files);
   });
 
+  // Download redirect to Cloudinary URL
   app.get(api.files.download.path, async (req, res) => {
-    const fileId = parseInt(req.params.fileId);
-    const file = await storage.getFile(fileId);
+    const fileId = Array.isArray(req.params.fileId) ? parseInt(req.params.fileId[0]) : parseInt(req.params.fileId);
+    const file = await getFile(fileId);
     
     if (!file) {
       return res.status(404).json({ message: "File not found" });
     }
 
-    const filePath = path.join(uploadDir, file.filename);
-    res.download(filePath, file.originalName);
+    // Redirect to Cloudinary URL for download
+    res.redirect(file.cloudinary_url);
   });
-
-  // WebSocket Server for Clipboard Sync
-  const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
-  
-  // Map session ID to set of connected sockets
-  const sessionClients = new Map<number, Set<WebSocket>>();
-
-  wss.on("connection", (ws) => {
-    let currentSessionId: number | null = null;
-
-    ws.on("message", async (data) => {
-      try {
-        const message = JSON.parse(data.toString());
-
-        if (message.type === "join") {
-          const session = await storage.getSessionByCode(message.code);
-          if (session) {
-            currentSessionId = session.id;
-            if (!sessionClients.has(session.id)) {
-              sessionClients.set(session.id, new Set());
-            }
-            sessionClients.get(session.id)!.add(ws);
-            
-            ws.send(JSON.stringify({ type: "joined", sessionId: session.id }));
-          } else {
-            ws.send(JSON.stringify({ type: "error", message: "Invalid code" }));
-          }
-        } else if (message.type === WS_EVENTS.CLIPBOARD_UPDATE && currentSessionId) {
-          // Broadcast to all other clients in this session
-          broadcastToSession(currentSessionId, {
-            type: WS_EVENTS.CLIPBOARD_UPDATE,
-            content: message.content,
-            timestamp: Date.now()
-          }, ws); // Exclude sender
-        }
-      } catch (err) {
-        console.error("WebSocket error:", err);
-      }
-    });
-
-    ws.on("close", () => {
-      if (currentSessionId && sessionClients.has(currentSessionId)) {
-        sessionClients.get(currentSessionId)!.delete(ws);
-        if (sessionClients.get(currentSessionId)!.size === 0) {
-          sessionClients.delete(currentSessionId);
-        }
-      }
-    });
-  });
-
-  function broadcastToSession(sessionId: number, message: any, excludeWs?: WebSocket) {
-    const clients = sessionClients.get(sessionId);
-    if (clients) {
-      clients.forEach(client => {
-        if (client !== excludeWs && client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify(message));
-        }
-      });
-    }
-  }
 
   return httpServer;
 }

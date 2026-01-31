@@ -13,11 +13,13 @@ export const sessions = pgTable("sessions", {
 
 export const files = pgTable("files", {
   id: serial("id").primaryKey(),
-  sessionId: integer("session_id").notNull(), // Link to session (virtual relation for mem storage)
-  filename: text("filename").notNull(),
+  sessionId: integer("session_id").notNull(), // Link to session
+  originalName: text("original_name").notNull(),
   mimeType: text("mime_type").notNull(),
   size: integer("size").notNull(),
-  originalName: text("original_name").notNull(),
+  cloudinaryUrl: text("cloudinary_url").notNull(),
+  cloudinaryPublicId: text("cloudinary_public_id").notNull(),
+  resourceType: text("resource_type").notNull(), // "image", "video", "raw"
   uploadedAt: timestamp("uploaded_at").defaultNow(),
 });
 
