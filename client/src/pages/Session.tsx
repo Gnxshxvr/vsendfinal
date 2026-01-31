@@ -53,13 +53,18 @@ export default function Session() {
             <Button variant="ghost" size="icon" onClick={() => setLocation("/")} className="rounded-full hover:bg-slate-100">
               <ArrowLeft className="w-5 h-5" />
             </Button>
-            <div>
-              <h1 className="text-lg font-bold leading-none">Session {code}</h1>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <span className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" : "bg-yellow-500"}`} />
-                <span className="text-xs text-muted-foreground font-medium">
-                  {isConnected ? "Connected" : "Connecting..."}
-                </span>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl overflow-hidden border-2 border-white shadow-sm bg-white">
+                <img src="/src/assets/logo.jpg" alt="Logo" className="w-full h-full object-contain" />
+              </div>
+              <div>
+                <h1 className="text-lg font-bold leading-none">Session {code}</h1>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" : "bg-yellow-500"}`} />
+                  <span className="text-xs text-muted-foreground font-medium">
+                    {isConnected ? "Connected" : "Connecting..."}
+                  </span>
+                </div>
               </div>
             </div>
           </div>

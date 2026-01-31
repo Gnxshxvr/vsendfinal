@@ -35,8 +35,8 @@ export default function Home() {
       >
         {/* Header */}
         <div className="text-center space-y-4">
-          <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-white shadow-lg shadow-black/5 mb-4">
-            <Zap className="w-8 h-8 text-primary fill-primary/20" />
+          <div className="inline-flex items-center justify-center p-1 rounded-3xl bg-white shadow-xl shadow-black/5 mb-4 overflow-hidden border-4 border-white">
+            <img src="/src/assets/logo.jpg" alt="VSend Logo" className="w-24 h-24 object-contain" />
           </div>
           <h1 className="text-5xl font-bold tracking-tight text-foreground">
             VSend
