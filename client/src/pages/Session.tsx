@@ -10,6 +10,7 @@ import { Loader2, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
+import logo from "@/assets/logo.jpg";
 
 export default function Session() {
   const params = useParams();
@@ -55,7 +56,7 @@ export default function Session() {
             </Button>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-white shadow-sm bg-white">
-                <img src="/src/assets/logo.jpg" alt="Logo" className="w-full h-full object-cover" />
+                <img src={logo} alt="Logo" className="w-full h-full object-cover" />
               </div>
               <div>
                 <h1 className="text-lg font-bold leading-none">Session {code}</h1>

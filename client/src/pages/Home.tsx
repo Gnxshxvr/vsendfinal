@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCreateSession } from "@/hooks/use-sessions";
 import { motion } from "framer-motion";
+import logo from "@/assets/logo.jpg";
 
 export default function Home() {
   const [code, setCode] = useState("");
@@ -35,7 +36,7 @@ export default function Home() {
       >
         <header className="text-center space-y-4">
           <div className="inline-flex items-center justify-center rounded-full bg-white shadow-xl shadow-black/5 mb-4 overflow-hidden border-4 border-white">
-            <img src="/src/assets/logo.jpg" alt="VSend Logo - Device to Device Transfer" className="w-24 h-24 object-cover" />
+            <img src={logo} alt="VSend Logo" className="w-24 h-24 object-cover" />
           </div>
           <h1 className="text-5xl font-bold tracking-tight text-foreground">
             VSend
