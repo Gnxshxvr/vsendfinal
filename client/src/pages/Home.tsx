@@ -42,7 +42,7 @@ export default function Home() {
             VSend
           </h1>
           <p className="text-lg text-muted-foreground max-w-sm mx-auto">
-            The instant bridge between your devices. No login, no hassle.
+            D2D in a SEC
           </p>
         </div>
 
