@@ -1,0 +1,198 @@
+VSend – Instant Document & Clipboard Bridge Between Laptop and Phone
+🧠 Product Vision
+
+Build a browser-based platform that lets users upload, edit, convert, and instantly transfer documents and text between a desktop and a mobile phone — without email, logins, apps, or cloud accounts.
+
+VSend connects two devices using a simple short code or QR scan, creating a temporary private session where files and clipboard text can be shared in real time.
+
+🎯 Problem Statement
+
+In college labs, offices, and shared systems:
+
+Users can’t log into Gmail or WhatsApp
+
+Sending assignments to phones is slow and restricted
+
+File conversion tools aren’t available
+
+Copy-pasting between devices is painful
+
+VSend removes all friction by enabling instant browser-to-browser transfer of documents and text using only a code or QR.
+
+🧩 Core Features
+1️⃣ Online Document Editor
+
+Users can:
+
+Upload Word (.docx) or PDF
+
+Edit in-browser:
+
+Name
+
+Roll number
+
+Assignment title
+
+Paragraph text
+
+Formatting (bold, size, alignment)
+
+Live preview while editing
+
+2️⃣ Smart File Conversion System
+
+Before sending:
+
+Convert:
+
+Word → PDF
+
+PDF → Word
+
+Download locally OR send to phone instantly
+
+3️⃣ Device Pairing System
+
+Two ways to connect devices:
+
+🔢 6-digit session code
+
+📱 QR code scan
+
+Once paired:
+
+Devices enter a temporary secure session
+
+Session auto-expires after transfer or timeout
+
+No login required
+
+4️⃣ Instant Mobile Download
+
+On the phone:
+
+Enter code or scan QR
+
+File starts downloading automatically
+
+Works in any browser (Chrome, Safari, Firefox)
+
+5️⃣ Live Clipboard Sync
+
+A dedicated Clipboard Channel allows:
+
+Send text from laptop → phone
+
+Send text from phone → laptop
+
+Works like a temporary cross-device notepad
+
+Supports:
+
+Notes
+
+Links
+
+Code snippets
+
+Assignment text
+
+🔐 Privacy & Security Design
+
+No user accounts
+
+No permanent storage
+
+End-to-end session-based sharing
+
+Files auto-delete after transfer or time limit
+
+Random session IDs prevent guessing
+
+🏗️ System Architecture
+Frontend
+
+Web app for:
+
+Uploading
+
+Editing
+
+QR scanning
+
+Clipboard chat
+
+Mobile-responsive UI
+
+Backend
+
+Session Manager:
+
+Generates codes
+
+Links devices
+
+File Handler:
+
+Temporary storage
+
+Format conversion
+
+Realtime Engine:
+
+WebSocket-based clipboard sync
+
+🛠️ Suggested Tech Stack
+Frontend
+
+HTML + CSS + JavaScript
+
+React (optional)
+
+QR Scanner API
+
+Backend
+
+Node.js / Flask
+
+WebSockets (Socket.IO)
+
+File conversion APIs
+
+Temporary file storage (RAM / auto-delete system)
+
+🧪 User Flow
+Laptop Side
+
+Open VSend
+
+Upload document
+
+Edit content
+
+Convert format (optional)
+
+Generate code / QR
+
+Mobile Side
+
+Open VSend
+
+Enter code / scan QR
+
+File downloads instantly
+
+Clipboard sync becomes active
+
+🌍 Real-World Use Cases
+
+College labs for assignments
+
+Office systems with blocked email access
+
+Cyber cafes
+
+Shared computers
+
+Quick phone-laptop file transfer without apps
