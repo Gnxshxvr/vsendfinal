@@ -1,0 +1,141 @@
+You are a senior frontend + SEO engineer.
+Your job is to optimize the existing VSend web app for Google search visibility while keeping all session, QR, clipboard, and file transfer functionality working exactly as it does now.
+
+🎯 OBJECTIVE
+
+Add SEO metadata, semantic HTML, accessibility improvements, and a lightweight content layer so VSend can rank for keywords like:
+
+send files from laptop to phone, browser based file sharing, qr code file transfer, universal clipboard, instant document sharing without login
+
+🏗️ CURRENT SYSTEM CONTEXT
+
+VSend is a browser-based tool that:
+
+Creates a 6-digit session code
+
+Syncs clipboard text between phone and laptop
+
+Transfers files in real time
+
+Supports QR-based joining
+
+Uses a single-page, session-based UI
+
+🧩 REQUIRED TASKS
+1️⃣ HEAD TAG SEO SYSTEM
+
+Modify index.html <head> section to include:
+
+SEO Title
+
+Meta description
+
+Keywords
+
+OpenGraph tags
+
+Mobile viewport
+
+Canonical URL
+
+Example keywords to include naturally:
+
+send files from pc to phone, browser file sharing, qr code file transfer, universal clipboard, instant file sharing website, no login file transfer
+
+2️⃣ SEMANTIC HTML STRUCTURE
+
+Refactor layout to use:
+
+<header>
+
+<main>
+
+<section>
+
+<footer>
+
+Add:
+
+One visible <h1>
+
+Logical <h2> sections (Features, How It Works, Secure Sharing)
+
+3️⃣ LIGHT CONTENT BLOCK (SEO SAFE)
+
+Below the hero section, insert a collapsible “How VSend Works” block with:
+
+2 short paragraphs explaining file transfer + clipboard sync
+
+A bullet list of use cases:
+
+College labs
+
+Office systems
+
+Quick phone-laptop sharing
+
+Secure temporary sessions
+
+4️⃣ IMAGE & QR ACCESSIBILITY
+
+Add:
+
+alt tags to all icons, QR images, and UI graphics
+
+aria-label attributes to:
+
+Upload button
+
+Join session button
+
+Clipboard textarea
+
+5️⃣ PERFORMANCE OPTIMIZATION
+
+Lazy-load non-critical images
+
+Defer analytics scripts
+
+Keep WebSocket logic prioritized
+
+6️⃣ SITEMAP & ROBOTS
+
+Generate:
+
+/sitemap.xml
+
+/robots.txt
+
+7️⃣ NO FUNCTIONAL REGRESSION
+
+Ensure:
+
+Session generation still works
+
+QR scanning works
+
+Clipboard sync remains real-time
+
+File transfer flow is untouched
+
+📦 OUTPUT FORMAT
+
+Provide:
+
+Modified index.html
+
+sitemap.xml
+
+robots.txt
+
+Summary of what was added and where
+
+🏆 QUALITY BAR
+
+The site should:
+
+Look identical to users, but be fully readable by search engines and screen readers.
+
+🔥 GOAL
+
+Make VSend rank-ready for Google while keeping its fast, clean, app-like feel.

@@ -76,6 +76,7 @@ export function ClipboardPanel({ initialContent, onSend, isConnected }: Clipboar
           onChange={handleChange}
           placeholder="Type or paste here to sync instantly..."
           className="h-full w-full resize-none border-0 focus-visible:ring-0 p-6 text-base leading-relaxed bg-transparent"
+          aria-label="Universal clipboard text editor for cross-device sync"
         />
         <div className="absolute bottom-4 right-4">
            {!isConnected && (
