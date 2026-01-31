@@ -1,9 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
 import { useLocation } from "wouter";
+import { useToast } from "@/hooks/use-toast";
 
 export function useCreateSession() {
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
   
   return useMutation({
     mutationFn: async () => {
@@ -11,12 +13,21 @@ export function useCreateSession() {
         method: api.sessions.create.method,
         headers: { "Content-Type": "application/json" },
       });
-      if (!res.ok) throw new Error("Failed to create session");
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to create session");
+      }
       return api.sessions.create.responses[201].parse(await res.json());
     },
     onSuccess: (data) => {
-      // Navigate to the session page
       setLocation(`/session/${data.code}`);
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
     },
   });
 }
