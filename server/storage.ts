@@ -60,6 +60,11 @@ export class MemStorage implements IStorage {
   }
 
   async saveFile(file: FileMetadata): Promise<FileMetadata> {
+    // Note: To use Cloudinary, you should wrap this in the Cloudinary SDK upload.
+    // Example: 
+    // const result = await cloudinary.uploader.upload(file.path);
+    // file.filename = result.secure_url; 
+    
     const id = this.currentFileId++;
     const newFile: FileMetadata = { ...file, id };
     
