@@ -1,13 +1,23 @@
-import { getFile } from "../../server/supabase";
+import { createClient } from "@supabase/supabase-js";
+
+// Supabase client for serverless
+const supabaseUrl = process.env.SUPABASE_URL || "https://ndbercohymnqzwcdrllg.supabase.co";
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "sb_secret_hU1qN082CKRfFJpUXRwAcg_xWK3k1S4";
+
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 // GET /api/download/[fileId] - Redirect to Cloudinary URL
 export async function GET(request: Request, { params }: { params: { fileId: string } }) {
   const fileId = Array.isArray(params.fileId) ? parseInt(params.fileId[0]) : parseInt(params.fileId);
   
   try {
-    const file = await getFile(fileId);
-    
-    if (!file) {
+    const { data, error } = await supabase
+      .from("files")
+      .select("cloudinary_url")
+      .eq("id", fileId)
+      .single();
+
+    if (error || !data) {
       return new Response(JSON.stringify({ message: "File not found" }), {
         status: 404,
         headers: { "Content-Type": "application/json" },
@@ -18,7 +28,7 @@ export async function GET(request: Request, { params }: { params: { fileId: stri
     return new Response(null, {
       status: 302,
       headers: {
-        "Location": file.cloudinary_url,
+        "Location": data.cloudinary_url,
       },
     });
   } catch (error) {
