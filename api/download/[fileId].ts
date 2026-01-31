@@ -1,6 +1,6 @@
-import { getFile } from "../../../server/supabase";
+import { getFile } from "../../server/supabase";
 
-// GET /api/files/[fileId]/download - Redirect to Cloudinary URL
+// GET /api/download/[fileId] - Redirect to Cloudinary URL
 export async function GET(request: Request, { params }: { params: { fileId: string } }) {
   const fileId = Array.isArray(params.fileId) ? parseInt(params.fileId[0]) : parseInt(params.fileId);
   

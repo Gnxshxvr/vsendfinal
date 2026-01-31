@@ -47,7 +47,7 @@ export const api = {
     },
     download: {
       method: "GET" as const,
-      path: "/api/files/:fileId/download",
+      path: "/api/download/:fileId",
       responses: {
         200: z.any(), // File stream
         404: errorSchemas.notFound,
