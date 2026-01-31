@@ -1,0 +1,1212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VSend – Instant Document & Clipboard Bridge</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.42.3/docxtemplater.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pizzip/3.1.6/pizzip.min.js"></script>
+    <style>
+        :root {
+            --bg-dark: #0a0e14;
+            --bg-medium: #151b26;
+            --bg-light: #1f2937;
+            --accent-primary: #00ff9f;
+            --accent-secondary: #00d4ff;
+            --accent-tertiary: #ff00ff;
+            --text-primary: #e8eaed;
+            --text-secondary: #9ca3af;
+            --border: #2d3748;
+            --glow: rgba(0, 255, 159, 0.3);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* Animated background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 50%, rgba(0, 255, 159, 0.05) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(0, 212, 255, 0.05) 0%, transparent 50%),
+                radial-gradient(circle at 40% 20%, rgba(255, 0, 255, 0.03) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+            animation: bgShift 20s ease-in-out infinite;
+        }
+
+        @keyframes bgShift {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(-20px, 20px) scale(1.05); }
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Header */
+        header {
+            text-align: center;
+            padding: 40px 20px;
+            border-bottom: 2px solid var(--border);
+            margin-bottom: 40px;
+            background: linear-gradient(135deg, var(--bg-medium) 0%, var(--bg-dark) 100%);
+            border-radius: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent 30%, var(--accent-primary) 50%, transparent 70%);
+            opacity: 0.03;
+            animation: headerSweep 8s linear infinite;
+        }
+
+        @keyframes headerSweep {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        h1 {
+            font-family: 'Syne', sans-serif;
+            font-size: 4em;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary), var(--accent-tertiary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+            letter-spacing: -2px;
+            position: relative;
+            animation: titleGlow 3s ease-in-out infinite;
+        }
+
+        @keyframes titleGlow {
+            0%, 100% { filter: drop-shadow(0 0 20px rgba(0, 255, 159, 0.3)); }
+            50% { filter: drop-shadow(0 0 40px rgba(0, 255, 159, 0.5)); }
+        }
+
+        .tagline {
+            font-size: 1.1em;
+            color: var(--text-secondary);
+            font-weight: 400;
+            position: relative;
+        }
+
+        /* Tab Navigation */
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .tab {
+            padding: 15px 30px;
+            background: var(--bg-medium);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.95em;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .tab::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, var(--accent-primary), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .tab:hover::before {
+            left: 100%;
+        }
+
+        .tab:hover {
+            border-color: var(--accent-primary);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px var(--glow);
+        }
+
+        .tab.active {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: var(--bg-dark);
+            border-color: var(--accent-primary);
+            box-shadow: 0 5px 30px var(--glow);
+        }
+
+        /* Content Sections */
+        .content-section {
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .content-section.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-medium);
+            border: 2px solid var(--border);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            border-color: var(--accent-primary);
+            box-shadow: 0 8px 30px rgba(0, 255, 159, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .card-title {
+            font-family: 'Syne', sans-serif;
+            font-size: 1.5em;
+            font-weight: 700;
+            margin-bottom: 15px;
+            color: var(--accent-primary);
+        }
+
+        /* Form Elements */
+        input[type="text"],
+        input[type="file"],
+        textarea,
+        select {
+            width: 100%;
+            padding: 15px;
+            background: var(--bg-light);
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.95em;
+            margin-bottom: 15px;
+            transition: all 0.3s ease;
+        }
+
+        input:focus,
+        textarea:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 20px var(--glow);
+        }
+
+        textarea {
+            min-height: 150px;
+            resize: vertical;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: var(--bg-dark);
+            border: none;
+            border-radius: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            font-size: 0.95em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .btn:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 40px var(--glow);
+        }
+
+        .btn:active {
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: var(--bg-light);
+            color: var(--text-primary);
+            border: 2px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--accent-primary);
+        }
+
+        /* Document Editor */
+        .editor-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .editor-panel {
+            background: var(--bg-light);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            min-height: 500px;
+        }
+
+        .preview-panel {
+            background: white;
+            color: #000;
+            padding: 40px;
+            font-family: 'Times New Roman', serif;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .toolbar button {
+            padding: 8px 15px;
+            background: var(--bg-medium);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85em;
+            transition: all 0.2s ease;
+        }
+
+        .toolbar button:hover {
+            background: var(--accent-primary);
+            color: var(--bg-dark);
+            border-color: var(--accent-primary);
+        }
+
+        /* Session Display */
+        .session-display {
+            text-align: center;
+            padding: 30px;
+            background: linear-gradient(135deg, var(--bg-light), var(--bg-medium));
+            border: 2px solid var(--accent-primary);
+            border-radius: 16px;
+            margin: 20px 0;
+        }
+
+        .session-code {
+            font-size: 3em;
+            font-weight: 800;
+            color: var(--accent-primary);
+            letter-spacing: 8px;
+            margin: 20px 0;
+            font-family: 'Syne', sans-serif;
+            text-shadow: 0 0 30px var(--glow);
+        }
+
+        #qrcode {
+            display: inline-block;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+            margin: 20px 0;
+        }
+
+        /* Clipboard Chat */
+        .clipboard-chat {
+            max-height: 500px;
+            overflow-y: auto;
+            padding: 20px;
+            background: var(--bg-light);
+            border-radius: 12px;
+            margin-bottom: 15px;
+        }
+
+        .message {
+            padding: 12px 18px;
+            border-radius: 12px;
+            margin-bottom: 10px;
+            max-width: 80%;
+            word-wrap: break-word;
+            animation: messageSlide 0.3s ease;
+        }
+
+        @keyframes messageSlide {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .message.sent {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: var(--bg-dark);
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .message.received {
+            background: var(--bg-medium);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .message-time {
+            font-size: 0.75em;
+            opacity: 0.7;
+            margin-top: 5px;
+        }
+
+        /* File Upload Zone */
+        .upload-zone {
+            border: 3px dashed var(--border);
+            border-radius: 16px;
+            padding: 60px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: var(--bg-light);
+        }
+
+        .upload-zone:hover {
+            border-color: var(--accent-primary);
+            background: var(--bg-medium);
+            box-shadow: 0 0 30px var(--glow);
+        }
+
+        .upload-zone.dragover {
+            border-color: var(--accent-primary);
+            background: var(--bg-medium);
+            transform: scale(1.02);
+        }
+
+        /* Status Messages */
+        .status-message {
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin: 15px 0;
+            font-weight: 600;
+            animation: statusSlide 0.5s ease;
+        }
+
+        @keyframes statusSlide {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .status-success {
+            background: rgba(0, 255, 159, 0.2);
+            border: 2px solid var(--accent-primary);
+            color: var(--accent-primary);
+        }
+
+        .status-info {
+            background: rgba(0, 212, 255, 0.2);
+            border: 2px solid var(--accent-secondary);
+            color: var(--accent-secondary);
+        }
+
+        .status-warning {
+            background: rgba(255, 193, 7, 0.2);
+            border: 2px solid #ffc107;
+            color: #ffc107;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2.5em;
+            }
+
+            .editor-container {
+                grid-template-columns: 1fr;
+            }
+
+            .tabs {
+                flex-direction: column;
+            }
+
+            .tab {
+                width: 100%;
+            }
+
+            .session-code {
+                font-size: 2em;
+                letter-spacing: 4px;
+            }
+        }
+
+        /* Loading Spinner */
+        .spinner {
+            border: 4px solid var(--border);
+            border-top: 4px solid var(--accent-primary);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Connection Status */
+        .connection-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+
+        .connected {
+            background: rgba(0, 255, 159, 0.2);
+            border: 1px solid var(--accent-primary);
+            color: var(--accent-primary);
+        }
+
+        .connected .status-dot {
+            background: var(--accent-primary);
+        }
+
+        .disconnected {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+
+        .disconnected .status-dot {
+            background: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>VSend</h1>
+            <p class="tagline">Instant Document & Clipboard Bridge Between Your Devices</p>
+        </header>
+
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('upload')">📄 Upload & Edit</div>
+            <div class="tab" onclick="switchTab('pair')">🔗 Device Pairing</div>
+            <div class="tab" onclick="switchTab('clipboard')">📋 Clipboard Sync</div>
+            <div class="tab" onclick="switchTab('receive')">📥 Receive Files</div>
+        </div>
+
+        <!-- Upload & Edit Section -->
+        <div id="upload" class="content-section active">
+            <div class="card">
+                <h2 class="card-title">Upload & Edit Document</h2>
+                
+                <div class="upload-zone" id="uploadZone">
+                    <p style="font-size: 2em; margin-bottom: 10px;">📎</p>
+                    <p style="font-size: 1.1em; margin-bottom: 5px;">Drop your file here or click to browse</p>
+                    <p style="color: var(--text-secondary); font-size: 0.85em;">Supports: .docx, .pdf (max 10MB)</p>
+                    <input type="file" id="fileInput" accept=".docx,.pdf" style="display: none;">
+                </div>
+
+                <div id="fileInfo" class="hidden" style="margin-top: 20px;">
+                    <div class="status-message status-success">
+                        <strong>File loaded:</strong> <span id="fileName"></span>
+                    </div>
+                </div>
+
+                <div id="editorSection" class="hidden">
+                    <h3 style="margin: 30px 0 15px; color: var(--accent-primary);">Document Editor</h3>
+                    
+                    <div class="editor-container">
+                        <div class="editor-panel">
+                            <h4 style="margin-bottom: 15px;">Edit Content</h4>
+                            
+                            <label>Name:</label>
+                            <input type="text" id="studentName" placeholder="Enter your name">
+                            
+                            <label>Roll Number:</label>
+                            <input type="text" id="rollNumber" placeholder="Enter roll number">
+                            
+                            <label>Assignment Title:</label>
+                            <input type="text" id="assignmentTitle" placeholder="Enter title">
+                            
+                            <label>Content:</label>
+                            <div class="toolbar">
+                                <button onclick="formatText('bold')"><strong>B</strong></button>
+                                <button onclick="formatText('italic')"><em>I</em></button>
+                                <button onclick="formatText('underline')"><u>U</u></button>
+                                <select id="fontSize" onchange="changeFontSize()">
+                                    <option value="12">12pt</option>
+                                    <option value="14" selected>14pt</option>
+                                    <option value="16">16pt</option>
+                                    <option value="18">18pt</option>
+                                    <option value="20">20pt</option>
+                                </select>
+                                <select id="alignment" onchange="changeAlignment()">
+                                    <option value="left">Left</option>
+                                    <option value="center">Center</option>
+                                    <option value="right">Right</option>
+                                    <option value="justify">Justify</option>
+                                </select>
+                            </div>
+                            <textarea id="documentContent" placeholder="Enter your document content here..."></textarea>
+                            
+                            <button class="btn" onclick="updatePreview()">🔄 Update Preview</button>
+                        </div>
+
+                        <div class="editor-panel preview-panel" id="previewPanel">
+                            <h4 style="text-align: center; color: #333;">Live Preview</h4>
+                            <hr style="margin: 20px 0; border: 1px solid #ccc;">
+                            <div id="previewContent">
+                                <p style="text-align: center; color: #999;">Preview will appear here after editing...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 30px; display: flex; gap: 15px; flex-wrap: wrap;">
+                        <button class="btn" onclick="convertFile('pdf')">📄 Convert to PDF</button>
+                        <button class="btn" onclick="convertFile('docx')">📝 Convert to DOCX</button>
+                        <button class="btn" onclick="downloadFile()">💾 Download</button>
+                        <button class="btn" onclick="sendToPhone()">📱 Send to Phone</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Device Pairing Section -->
+        <div id="pair" class="content-section">
+            <div class="card">
+                <h2 class="card-title">Device Pairing</h2>
+                
+                <div style="text-align: center; margin: 20px 0;">
+                    <div class="connection-status disconnected" id="connectionStatus">
+                        <div class="status-dot"></div>
+                        <span>Not Connected</span>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 30px;">
+                    <div>
+                        <h3 style="margin-bottom: 15px; color: var(--accent-primary);">Create Session (Desktop)</h3>
+                        <button class="btn" onclick="createSession()" style="width: 100%;">
+                            🔗 Generate Pairing Code
+                        </button>
+                        
+                        <div id="sessionDisplay" class="hidden">
+                            <div class="session-display">
+                                <p style="font-size: 0.9em; color: var(--text-secondary); margin-bottom: 10px;">
+                                    Enter this code on your phone:
+                                </p>
+                                <div class="session-code" id="sessionCode">------</div>
+                                <div id="qrcode"></div>
+                                <p style="font-size: 0.85em; color: var(--text-secondary); margin-top: 15px;">
+                                    Or scan the QR code above
+                                </p>
+                                <p style="font-size: 0.8em; color: var(--text-secondary); margin-top: 10px;">
+                                    Session expires in: <strong id="sessionTimer">5:00</strong>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 style="margin-bottom: 15px; color: var(--accent-secondary);">Join Session (Mobile)</h3>
+                        <input type="text" id="joinCode" placeholder="Enter 6-digit code" maxlength="6" 
+                               style="text-align: center; font-size: 1.5em; letter-spacing: 4px;">
+                        <button class="btn btn-secondary" onclick="joinSession()" style="width: 100%;">
+                            📲 Connect to Desktop
+                        </button>
+                        
+                        <div style="margin-top: 20px; text-align: center;">
+                            <p style="color: var(--text-secondary); font-size: 0.9em; margin-bottom: 10px;">OR</p>
+                            <button class="btn btn-secondary" onclick="scanQR()" style="width: 100%;">
+                                📷 Scan QR Code
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Clipboard Sync Section -->
+        <div id="clipboard" class="content-section">
+            <div class="card">
+                <h2 class="card-title">Live Clipboard Sync</h2>
+                
+                <div class="status-message status-info" id="clipboardStatus">
+                    <strong>ℹ️ Status:</strong> Pair devices first to enable clipboard sync
+                </div>
+
+                <div class="clipboard-chat" id="clipboardChat">
+                    <p style="text-align: center; color: var(--text-secondary); padding: 40px;">
+                        Connect your devices to start syncing clipboard content
+                    </p>
+                </div>
+
+                <div style="display: flex; gap: 10px;">
+                    <textarea id="clipboardInput" placeholder="Type or paste text to send..." 
+                              style="flex: 1; min-height: 80px;"></textarea>
+                    <button class="btn" onclick="sendClipboard()" style="height: fit-content;">
+                        📤 Send
+                    </button>
+                </div>
+
+                <div style="margin-top: 15px; display: flex; gap: 10px;">
+                    <button class="btn btn-secondary" onclick="pasteFromClipboard()">
+                        📋 Paste from Clipboard
+                    </button>
+                    <button class="btn btn-secondary" onclick="clearClipboardChat()">
+                        🗑️ Clear Chat
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Receive Files Section -->
+        <div id="receive" class="content-section">
+            <div class="card">
+                <h2 class="card-title">Receive Files</h2>
+                
+                <div class="status-message status-info">
+                    <strong>📱 Mobile users:</strong> Enter the code from your desktop or scan QR to receive files
+                </div>
+
+                <div style="margin: 30px 0;">
+                    <input type="text" id="receiveCode" placeholder="Enter 6-digit code from desktop" 
+                           maxlength="6" style="text-align: center; font-size: 1.5em; letter-spacing: 4px;">
+                    <button class="btn" onclick="receiveFile()" style="width: 100%;">
+                        📥 Connect & Download
+                    </button>
+                </div>
+
+                <div id="receiveStatus" class="hidden"></div>
+                
+                <div id="fileDownloadSection" class="hidden" style="margin-top: 20px;">
+                    <div class="session-display">
+                        <p style="font-size: 1.2em; margin-bottom: 15px;">✅ File Ready!</p>
+                        <p style="color: var(--text-secondary); margin-bottom: 20px;" id="downloadFileName"></p>
+                        <button class="btn" onclick="downloadReceivedFile()">
+                            💾 Download to Phone
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        let currentFile = null;
+        let currentSession = null;
+        let isConnected = false;
+        let sessionTimer = null;
+        let clipboardMessages = [];
+
+        // Tab switching
+        function switchTab(tabName) {
+            document.querySelectorAll('.content-section').forEach(section => {
+                section.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // File upload handling
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadZone.addEventListener('click', () => fileInput.click());
+        
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) handleFileUpload(files[0]);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) handleFileUpload(e.target.files[0]);
+        });
+
+        function handleFileUpload(file) {
+            if (file.size > 10 * 1024 * 1024) {
+                alert('File size exceeds 10MB limit');
+                return;
+            }
+
+            if (!file.name.match(/\.(docx|pdf)$/i)) {
+                alert('Only .docx and .pdf files are supported');
+                return;
+            }
+
+            currentFile = file;
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('fileInfo').classList.remove('hidden');
+            document.getElementById('editorSection').classList.remove('hidden');
+            
+            // Load file content for editing
+            loadFileContent(file);
+        }
+
+        function loadFileContent(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                if (file.name.endsWith('.pdf')) {
+                    document.getElementById('documentContent').value = 
+                        '[PDF content loaded - edit fields above and convert to modify]';
+                } else {
+                    document.getElementById('documentContent').value = 
+                        '[Document loaded - edit fields above]';
+                }
+                updatePreview();
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // Editor functions
+        function formatText(command) {
+            document.execCommand(command, false, null);
+        }
+
+        function changeFontSize() {
+            const size = document.getElementById('fontSize').value;
+            document.getElementById('documentContent').style.fontSize = size + 'pt';
+        }
+
+        function changeAlignment() {
+            const align = document.getElementById('alignment').value;
+            document.getElementById('documentContent').style.textAlign = align;
+        }
+
+        function updatePreview() {
+            const name = document.getElementById('studentName').value;
+            const roll = document.getElementById('rollNumber').value;
+            const title = document.getElementById('assignmentTitle').value;
+            const content = document.getElementById('documentContent').value;
+            const fontSize = document.getElementById('fontSize').value;
+            const alignment = document.getElementById('alignment').value;
+
+            const previewHTML = `
+                <div style="font-size: ${fontSize}pt; text-align: ${alignment};">
+                    ${name ? `<p><strong>Name:</strong> ${name}</p>` : ''}
+                    ${roll ? `<p><strong>Roll Number:</strong> ${roll}</p>` : ''}
+                    ${title ? `<h3 style="margin: 20px 0;">${title}</h3>` : ''}
+                    <div style="margin-top: 20px; line-height: 1.8;">
+                        ${content.replace(/\n/g, '<br>')}
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('previewContent').innerHTML = previewHTML;
+        }
+
+        async function convertFile(format) {
+            showStatus(`Converting to ${format.toUpperCase()}...`, 'info');
+            
+            // Simulate conversion
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            showStatus(`✅ Converted to ${format.toUpperCase()} successfully!`, 'success');
+        }
+
+        function downloadFile() {
+            const name = document.getElementById('studentName').value || 'document';
+            const content = document.getElementById('previewContent').innerHTML;
+            
+            const blob = new Blob([content], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${name.replace(/\s+/g, '_')}.html`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            showStatus('✅ File downloaded successfully!', 'success');
+        }
+
+        function sendToPhone() {
+            if (!currentSession) {
+                showStatus('⚠️ Please create a pairing session first', 'warning');
+                switchTab('pair');
+                return;
+            }
+            
+            showStatus('📤 Sending file to paired device...', 'info');
+            
+            // Store file in session
+            sessionStorage.setItem(`file_${currentSession}`, JSON.stringify({
+                name: document.getElementById('studentName').value || 'document',
+                content: document.getElementById('previewContent').innerHTML,
+                timestamp: Date.now()
+            }));
+            
+            setTimeout(() => {
+                showStatus('✅ File sent! Check your phone to download.', 'success');
+            }, 1000);
+        }
+
+        // Session management
+        function createSession() {
+            const code = Math.floor(100000 + Math.random() * 900000).toString();
+            currentSession = code;
+            
+            document.getElementById('sessionCode').textContent = code;
+            document.getElementById('sessionDisplay').classList.remove('hidden');
+            
+            // Generate QR code
+            document.getElementById('qrcode').innerHTML = '';
+            new QRCode(document.getElementById('qrcode'), {
+                text: `VSend:${code}`,
+                width: 200,
+                height: 200
+            });
+            
+            // Store session
+            sessionStorage.setItem(`session_${code}`, JSON.stringify({
+                created: Date.now(),
+                connected: false
+            }));
+            
+            // Start timer
+            startSessionTimer();
+            
+            showStatus('✅ Session created! Share the code with your phone.', 'success');
+        }
+
+        function startSessionTimer() {
+            let timeLeft = 300; // 5 minutes
+            
+            sessionTimer = setInterval(() => {
+                timeLeft--;
+                const minutes = Math.floor(timeLeft / 60);
+                const seconds = timeLeft % 60;
+                document.getElementById('sessionTimer').textContent = 
+                    `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                
+                if (timeLeft <= 0) {
+                    clearInterval(sessionTimer);
+                    endSession();
+                }
+            }, 1000);
+        }
+
+        function joinSession() {
+            const code = document.getElementById('joinCode').value;
+            
+            if (code.length !== 6) {
+                showStatus('⚠️ Please enter a valid 6-digit code', 'warning');
+                return;
+            }
+            
+            const session = sessionStorage.getItem(`session_${code}`);
+            
+            if (!session) {
+                showStatus('❌ Invalid or expired session code', 'warning');
+                return;
+            }
+            
+            currentSession = code;
+            isConnected = true;
+            updateConnectionStatus(true);
+            
+            showStatus('✅ Connected to desktop successfully!', 'success');
+            
+            // Enable clipboard sync
+            document.getElementById('clipboardStatus').innerHTML = 
+                '<strong>✅ Connected:</strong> Clipboard sync is now active';
+            document.getElementById('clipboardStatus').className = 'status-message status-success';
+        }
+
+        function scanQR() {
+            showStatus('📷 QR scanning would open camera (demo mode)', 'info');
+            // In production, this would use device camera
+        }
+
+        function updateConnectionStatus(connected) {
+            const statusEl = document.getElementById('connectionStatus');
+            if (connected) {
+                statusEl.className = 'connection-status connected';
+                statusEl.innerHTML = '<div class="status-dot"></div><span>Connected</span>';
+            } else {
+                statusEl.className = 'connection-status disconnected';
+                statusEl.innerHTML = '<div class="status-dot"></div><span>Not Connected</span>';
+            }
+        }
+
+        function endSession() {
+            if (currentSession) {
+                sessionStorage.removeItem(`session_${currentSession}`);
+            }
+            currentSession = null;
+            isConnected = false;
+            updateConnectionStatus(false);
+            document.getElementById('sessionDisplay').classList.add('hidden');
+            if (sessionTimer) clearInterval(sessionTimer);
+        }
+
+        // Clipboard sync
+        function sendClipboard() {
+            const text = document.getElementById('clipboardInput').value;
+            
+            if (!text.trim()) {
+                showStatus('⚠️ Please enter some text first', 'warning');
+                return;
+            }
+            
+            if (!isConnected) {
+                showStatus('⚠️ Please connect devices first', 'warning');
+                return;
+            }
+            
+            addMessage(text, 'sent');
+            document.getElementById('clipboardInput').value = '';
+            
+            // Store in session
+            clipboardMessages.push({
+                text,
+                type: 'sent',
+                timestamp: Date.now()
+            });
+            
+            sessionStorage.setItem(`clipboard_${currentSession}`, JSON.stringify(clipboardMessages));
+            
+            // Simulate receiving on other device
+            setTimeout(() => {
+                showStatus('✅ Text sent to paired device', 'success');
+            }, 500);
+        }
+
+        function addMessage(text, type) {
+            const chatEl = document.getElementById('clipboardChat');
+            
+            // Clear placeholder if first message
+            if (chatEl.querySelector('p[style*="text-align: center"]')) {
+                chatEl.innerHTML = '';
+            }
+            
+            const messageEl = document.createElement('div');
+            messageEl.className = `message ${type}`;
+            
+            const time = new Date().toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+            
+            messageEl.innerHTML = `
+                <div>${text}</div>
+                <div class="message-time">${time}</div>
+            `;
+            
+            chatEl.appendChild(messageEl);
+            chatEl.scrollTop = chatEl.scrollHeight;
+        }
+
+        async function pasteFromClipboard() {
+            try {
+                const text = await navigator.clipboard.readText();
+                document.getElementById('clipboardInput').value = text;
+                showStatus('✅ Pasted from clipboard', 'success');
+            } catch (err) {
+                showStatus('⚠️ Clipboard access denied. Please paste manually.', 'warning');
+            }
+        }
+
+        function clearClipboardChat() {
+            if (confirm('Clear all clipboard messages?')) {
+                document.getElementById('clipboardChat').innerHTML = 
+                    '<p style="text-align: center; color: var(--text-secondary); padding: 40px;">No messages yet</p>';
+                clipboardMessages = [];
+                if (currentSession) {
+                    sessionStorage.removeItem(`clipboard_${currentSession}`);
+                }
+                showStatus('🗑️ Chat cleared', 'info');
+            }
+        }
+
+        // Receive files
+        function receiveFile() {
+            const code = document.getElementById('receiveCode').value;
+            
+            if (code.length !== 6) {
+                showStatus('⚠️ Please enter a valid 6-digit code', 'warning');
+                return;
+            }
+            
+            const fileData = sessionStorage.getItem(`file_${code}`);
+            
+            if (!fileData) {
+                showStatus('❌ No file found for this code', 'warning');
+                return;
+            }
+            
+            const file = JSON.parse(fileData);
+            document.getElementById('downloadFileName').textContent = `${file.name}.html`;
+            document.getElementById('fileDownloadSection').classList.remove('hidden');
+            document.getElementById('fileDownloadSection').dataset.fileData = fileData;
+            
+            showStatus('✅ File found! Ready to download.', 'success');
+        }
+
+        function downloadReceivedFile() {
+            const fileData = document.getElementById('fileDownloadSection').dataset.fileData;
+            const file = JSON.parse(fileData);
+            
+            const blob = new Blob([file.content], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${file.name}.html`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            showStatus('✅ File downloaded to your phone!', 'success');
+        }
+
+        // Utility functions
+        function showStatus(message, type) {
+            const existingStatus = document.querySelector('.status-message:not(#clipboardStatus)');
+            if (existingStatus && existingStatus.parentElement.id === 'receive') {
+                existingStatus.remove();
+            }
+            
+            const statusEl = document.createElement('div');
+            statusEl.className = `status-message status-${type}`;
+            statusEl.textContent = message;
+            
+            const activeSection = document.querySelector('.content-section.active .card');
+            if (activeSection) {
+                activeSection.insertBefore(statusEl, activeSection.firstChild);
+                
+                setTimeout(() => statusEl.remove(), 5000);
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            // Load any existing session
+            const keys = Object.keys(sessionStorage);
+            const sessionKey = keys.find(k => k.startsWith('session_'));
+            
+            if (sessionKey) {
+                const code = sessionKey.replace('session_', '');
+                const session = JSON.parse(sessionStorage.getItem(sessionKey));
+                
+                // Check if session is still valid (within 5 minutes)
+                if (Date.now() - session.created < 300000) {
+                    currentSession = code;
+                    document.getElementById('sessionCode').textContent = code;
+                    document.getElementById('sessionDisplay').classList.remove('hidden');
+                    startSessionTimer();
+                }
+            }
+        });
+
+        // Simulate real-time updates (in production, use WebSockets)
+        setInterval(() => {
+            if (isConnected && currentSession) {
+                const clipboard = sessionStorage.getItem(`clipboard_${currentSession}`);
+                if (clipboard) {
+                    const messages = JSON.parse(clipboard);
+                    // Check for new messages from other device
+                    if (messages.length > clipboardMessages.length) {
+                        const newMessages = messages.slice(clipboardMessages.length);
+                        newMessages.forEach(msg => {
+                            if (msg.type === 'sent') {
+                                addMessage(msg.text, 'received');
+                            }
+                        });
+                        clipboardMessages = messages;
+                    }
+                }
+            }
+        }, 2000);
+    </script>
+</body>
+</html>

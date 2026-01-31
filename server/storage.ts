@@ -1,37 +1,82 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
 
-// modify the interface with any CRUD methods
-// you might need
+import { Session, FileMetadata, insertSessionSchema, sessions } from "@shared/schema";
+import { randomBytes } from "crypto";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  createSession(): Promise<Session>;
+  getSessionByCode(code: string): Promise<Session | undefined>;
+  saveFile(file: FileMetadata): Promise<FileMetadata>;
+  getFiles(sessionId: number): Promise<FileMetadata[]>;
+  getFile(fileId: number): Promise<FileMetadata | undefined>;
 }
 
 export class MemStorage implements IStorage {
-  private users: Map<string, User>;
+  private sessions: Map<string, Session>;
+  private sessionFiles: Map<number, FileMetadata[]>;
+  private files: Map<number, FileMetadata>;
+  private currentSessionId: number;
+  private currentFileId: number;
 
   constructor() {
-    this.users = new Map();
+    this.sessions = new Map();
+    this.sessionFiles = new Map();
+    this.files = new Map();
+    this.currentSessionId = 1;
+    this.currentFileId = 1;
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  async createSession(): Promise<Session> {
+    const id = this.currentSessionId++;
+    // Generate a 6-digit numeric code
+    let code = "";
+    do {
+      code = Math.floor(100000 + Math.random() * 900000).toString();
+    } while (this.sessions.has(code));
+
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    
+    const session: Session = {
+      id,
+      code,
+      createdAt: new Date(),
+      expiresAt,
+    };
+
+    this.sessions.set(code, session);
+    return session;
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+  async getSessionByCode(code: string): Promise<Session | undefined> {
+    const session = this.sessions.get(code);
+    if (!session) return undefined;
+    
+    // Check expiration
+    if (new Date() > session.expiresAt) {
+      this.sessions.delete(code);
+      return undefined;
+    }
+    
+    return session;
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+  async saveFile(file: FileMetadata): Promise<FileMetadata> {
+    const id = this.currentFileId++;
+    const newFile: FileMetadata = { ...file, id };
+    
+    this.files.set(id, newFile);
+    
+    const currentFiles = this.sessionFiles.get(file.sessionId) || [];
+    this.sessionFiles.set(file.sessionId, [...currentFiles, newFile]);
+    
+    return newFile;
+  }
+
+  async getFiles(sessionId: number): Promise<FileMetadata[]> {
+    return this.sessionFiles.get(sessionId) || [];
+  }
+
+  async getFile(fileId: number): Promise<FileMetadata | undefined> {
+    return this.files.get(fileId);
   }
 }
 
