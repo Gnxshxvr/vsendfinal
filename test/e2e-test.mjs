@@ -251,6 +251,106 @@ async function runTests() {
     report("Scenario F: Explicit Leave Session closes room and cleans up resources", false, err);
   }
 
+  // --- Test 10: WebRTC Configuration Discovery (Scenario H) ---
+  try {
+    const configRes = await fetch(`${BASE_URL}/api/webrtc-config`);
+    assert.strictEqual(configRes.status, 200);
+    const configData = await configRes.json();
+    assert.ok(Array.isArray(configData.iceServers), "iceServers must be an array");
+    assert.ok(configData.iceServers.length > 0, "At least one ICE server should be configured");
+    const hasStun = configData.iceServers.some((srv) => {
+      const urls = Array.isArray(srv.urls) ? srv.urls.join(" ") : srv.urls;
+      return urls && urls.includes("stun:");
+    });
+    assert.ok(hasStun, "Configuration must include STUN server URLs");
+    report("Scenario H: WebRTC ICE server configuration discovery (/api/webrtc-config)", true);
+  } catch (err) {
+    report("Scenario H: WebRTC ICE server configuration discovery (/api/webrtc-config)", false, err);
+  }
+
+  // --- Test 11: WebRTC Signaling Relay via WebSocket (Scenario I) ---
+  try {
+    // Create new session for WebRTC test
+    const rtcSessionRes = await fetch(`${BASE_URL}/api/sessions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+    const rtcSession = await rtcSessionRes.json();
+
+    const clientA = new WebSocket(WS_URL);
+    const clientB = new WebSocket(WS_URL);
+
+    await Promise.all([
+      new Promise((res) => clientA.on("open", res)),
+      new Promise((res) => clientB.on("open", res)),
+    ]);
+
+    const clientAMessages = [];
+    const clientBMessages = [];
+
+    clientA.on("message", (msg) => clientAMessages.push(JSON.parse(msg.toString())));
+    clientB.on("message", (msg) => clientBMessages.push(JSON.parse(msg.toString())));
+
+    // Client A joins first
+    clientA.send(JSON.stringify({ type: "join", code: rtcSession.code }));
+    await new Promise((res) => setTimeout(res, 100));
+
+    // Client B joins - this should trigger peer_joined to Client A
+    clientB.send(JSON.stringify({ type: "join", code: rtcSession.code }));
+    await new Promise((res) => setTimeout(res, 200));
+
+    const peerJoinedMsg = clientAMessages.find((m) => m.type === "peer_joined");
+    assert.ok(peerJoinedMsg, "Client A should receive peer_joined when Client B connects");
+
+    // Client A sends WebRTC Offer
+    const mockOfferSdp = { type: "offer", sdp: "v=0\r\no=- 12345 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\n" };
+    clientA.send(
+      JSON.stringify({
+        type: "webrtc_offer",
+        offer: mockOfferSdp,
+      })
+    );
+    await new Promise((res) => setTimeout(res, 200));
+
+    const receivedOffer = clientBMessages.find((m) => m.type === "webrtc_offer");
+    assert.ok(receivedOffer, "Client B should receive webrtc_offer");
+    assert.strictEqual(receivedOffer.offer.sdp, mockOfferSdp.sdp);
+
+    // Client B sends WebRTC Answer
+    const mockAnswerSdp = { type: "answer", sdp: "v=0\r\no=- 67890 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\n" };
+    clientB.send(
+      JSON.stringify({
+        type: "webrtc_answer",
+        answer: mockAnswerSdp,
+      })
+    );
+    await new Promise((res) => setTimeout(res, 200));
+
+    const receivedAnswer = clientAMessages.find((m) => m.type === "webrtc_answer");
+    assert.ok(receivedAnswer, "Client A should receive webrtc_answer");
+    assert.strictEqual(receivedAnswer.answer.sdp, mockAnswerSdp.sdp);
+
+    // Client A sends ICE Candidate
+    const mockCandidate = { candidate: "candidate:1 1 UDP 2122260223 192.168.1.5 54321 typ host", sdpMid: "0", sdpMLineIndex: 0 };
+    clientA.send(
+      JSON.stringify({
+        type: "webrtc_ice_candidate",
+        candidate: mockCandidate,
+      })
+    );
+    await new Promise((res) => setTimeout(res, 200));
+
+    const receivedCandidate = clientBMessages.find((m) => m.type === "webrtc_ice_candidate");
+    assert.ok(receivedCandidate, "Client B should receive webrtc_ice_candidate");
+    assert.strictEqual(receivedCandidate.candidate.candidate, mockCandidate.candidate);
+
+    clientA.close();
+    clientB.close();
+    report("Scenario I: WebRTC signaling relay (peer_joined, offer, answer, ice_candidate)", true);
+  } catch (err) {
+    report("Scenario I: WebRTC signaling relay (peer_joined, offer, answer, ice_candidate)", false, err);
+  }
+
   console.log(`\n=== RESULTS: ${passed} PASSED, ${failed} FAILED ===\n`);
   if (failed > 0) {
     process.exit(1);

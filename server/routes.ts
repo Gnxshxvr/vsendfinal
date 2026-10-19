@@ -141,6 +141,20 @@ export async function registerRoutes(
           );
 
           broadcastPresence(session.id);
+
+          // If there are existing peers in the room, tell them a peer joined so they can initiate WebRTC offer
+          if (count > 1) {
+            broadcastToSession(
+              session.id,
+              {
+                type: WS_EVENTS.PEER_JOINED,
+                sessionId: session.id,
+                code: session.code,
+                count,
+              },
+              ws // Exclude newly joined socket so the earlier peer initiates
+            );
+          }
         } else if (
           message.type === WS_EVENTS.CLIPBOARD_UPDATE &&
           ws.sessionId
@@ -155,6 +169,14 @@ export async function registerRoutes(
             },
             ws // Exclude sender to prevent echo
           );
+        } else if (
+          (message.type === WS_EVENTS.WEBRTC_OFFER ||
+            message.type === WS_EVENTS.WEBRTC_ANSWER ||
+            message.type === WS_EVENTS.WEBRTC_ICE_CANDIDATE) &&
+          ws.sessionId
+        ) {
+          // Forward WebRTC signaling message to all other peers in the room
+          broadcastToSession(ws.sessionId, message, ws);
         }
       } catch (err) {
         console.error("WebSocket message handling error:", err);
@@ -433,6 +455,33 @@ export async function registerRoutes(
       console.error("Error previewing file:", error);
       res.status(500).json({ message: "Failed to preview file" });
     }
+  });
+
+  // WebRTC ICE / STUN / TURN Configuration
+  app.get("/api/webrtc-config", (_req, res) => {
+    // High-availability public Google & Cloudflare STUN servers by default
+    let iceServers: any[] = [
+      { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" },
+      { urls: "stun:stun.cloudflare.com:3478" },
+    ];
+
+    // Support configurable ICE_SERVERS or TURN_SERVER in environment variables
+    if (process.env.ICE_SERVERS) {
+      try {
+        iceServers = JSON.parse(process.env.ICE_SERVERS);
+      } catch (err) {
+        console.warn("Invalid ICE_SERVERS JSON configuration:", err);
+      }
+    } else if (process.env.TURN_SERVER_URL) {
+      iceServers.push({
+        urls: process.env.TURN_SERVER_URL,
+        username: process.env.TURN_USERNAME,
+        credential: process.env.TURN_CREDENTIAL,
+      });
+    }
+
+    res.json({ iceServers });
   });
 
   return httpServer;

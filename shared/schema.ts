@@ -52,8 +52,13 @@ export type ClipboardMessage = {
 export const WS_EVENTS = {
   JOIN: "join",
   JOINED: "joined",
+  PEER_JOINED: "peer_joined",
   CLIPBOARD_UPDATE: "clipboard_update",
   FILE_UPLOADED: "file_uploaded",
   PRESENCE: "presence",
   ERROR: "error",
+  // WebRTC Signaling
+  WEBRTC_OFFER: "webrtc_offer",
+  WEBRTC_ANSWER: "webrtc_answer",
+  WEBRTC_ICE_CANDIDATE: "webrtc_ice_candidate",
 } as const;

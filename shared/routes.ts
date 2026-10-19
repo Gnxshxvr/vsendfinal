@@ -68,6 +68,17 @@ export const api = {
       },
     },
   },
+  webrtc: {
+    config: {
+      method: "GET" as const,
+      path: "/api/webrtc-config",
+      responses: {
+        200: z.object({
+          iceServers: z.array(z.any()),
+        }),
+      },
+    },
+  },
 };
 
 export function buildUrl(path: string, params?: Record<string, string | number>): string {

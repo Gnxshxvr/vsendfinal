@@ -10,10 +10,8 @@ import {
   Image as ImageIcon,
   Search,
   Eye,
-  X,
-  AlertCircle,
-  CheckCircle2,
-  ExternalLink,
+  Zap,
+  Server,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,10 +29,18 @@ import type { FileMetadata } from "@shared/schema";
 import { getDownloadUrl, getPreviewUrl, MAX_FILE_SIZE } from "@/hooks/use-files";
 import { useToast } from "@/hooks/use-toast";
 
+export type DisplayFile = FileMetadata & {
+  blobUrl?: string;
+  isP2P?: boolean;
+};
+
 interface FileTransferPanelProps {
-  files: FileMetadata[];
+  files: DisplayFile[];
   onUpload: (file: File) => void;
   isUploading: boolean;
+  isDirectP2P?: boolean;
+  p2pTransferProgress?: number | null;
+  transferringFileName?: string | null;
 }
 
 function formatBytes(bytes: number): string {
@@ -47,7 +53,10 @@ function formatBytes(bytes: number): string {
 
 function getFileIcon(mimeType: string, filename: string) {
   const ext = filename.split(".").pop()?.toLowerCase() || "";
-  if (mimeType.startsWith("image/") || ["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(ext)) {
+  if (
+    mimeType.startsWith("image/") ||
+    ["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(ext)
+  ) {
     return <ImageIcon className="w-5 h-5 text-indigo-600" />;
   }
   if (mimeType === "application/pdf" || ext === "pdf") {
@@ -69,9 +78,12 @@ export function FileTransferPanel({
   files,
   onUpload,
   isUploading,
+  isDirectP2P = false,
+  p2pTransferProgress = null,
+  transferringFileName = null,
 }: FileTransferPanelProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [previewFile, setPreviewFile] = useState<FileMetadata | null>(null);
+  const [previewFile, setPreviewFile] = useState<DisplayFile | null>(null);
   const [textPreviewContent, setTextPreviewContent] = useState<string | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const { toast } = useToast();
@@ -83,7 +95,7 @@ export function FileTransferPanel({
           toast({
             variant: "destructive",
             title: "File Too Large",
-            description: `"${file.name}" exceeds the 50MB upload limit.`,
+            description: `"${file.name}" exceeds the 25MB upload limit.`,
           });
           continue;
         }
@@ -93,7 +105,7 @@ export function FileTransferPanel({
     [onUpload, toast]
   );
 
-  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     noClick: false,
     maxSize: MAX_FILE_SIZE,
@@ -105,7 +117,7 @@ export function FileTransferPanel({
     return files.filter((f) => f.originalName.toLowerCase().includes(query));
   }, [files, searchQuery]);
 
-  const handleOpenPreview = async (file: FileMetadata) => {
+  const handleOpenPreview = async (file: DisplayFile) => {
     setPreviewFile(file);
     setTextPreviewContent(null);
 
@@ -118,7 +130,7 @@ export function FileTransferPanel({
     if (isText) {
       setIsLoadingPreview(true);
       try {
-        const previewUrl = getPreviewUrl(file.id);
+        const previewUrl = file.blobUrl || getPreviewUrl(file.id);
         const res = await fetch(previewUrl);
         if (res.ok) {
           const text = await res.text();
@@ -132,13 +144,13 @@ export function FileTransferPanel({
     }
   };
 
-  const isImagePreview = (file: FileMetadata) =>
+  const isImagePreview = (file: DisplayFile) =>
     file.mimeType.startsWith("image/") ||
     ["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(
       file.originalName.split(".").pop()?.toLowerCase() || ""
     );
 
-  const isPdfPreview = (file: FileMetadata) =>
+  const isPdfPreview = (file: DisplayFile) =>
     file.mimeType === "application/pdf" ||
     file.originalName.toLowerCase().endsWith(".pdf");
 
@@ -155,13 +167,51 @@ export function FileTransferPanel({
               <span>File Transfer</span>
             </CardTitle>
 
-            <span className="text-xs font-mono font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
-              {files.length} {files.length === 1 ? "file" : "files"}
-            </span>
+            <div className="flex items-center gap-2">
+              {isDirectP2P ? (
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/70">
+                  <Zap className="w-3 h-3 text-emerald-600" />
+                  Direct WebRTC
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                  <Server className="w-3 h-3 text-slate-500" />
+                  Server Relay
+                </span>
+              )}
+
+              <span className="text-xs font-mono font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                {files.length} {files.length === 1 ? "file" : "files"}
+              </span>
+            </div>
           </div>
         </CardHeader>
 
         <CardContent className="flex-1 p-5 flex flex-col gap-4 overflow-hidden">
+          {/* Active P2P Streaming Progress Bar */}
+          {p2pTransferProgress !== null && (
+            <div className="bg-emerald-50/90 border border-emerald-200 rounded-xl p-3 space-y-1.5 animate-in fade-in">
+              <div className="flex items-center justify-between text-xs font-semibold text-emerald-900">
+                <div className="flex items-center gap-1.5 truncate pr-2">
+                  <Zap className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span className="truncate">
+                    {transferringFileName ? `Streaming "${transferringFileName}"` : "P2P Transfer"}
+                  </span>
+                </div>
+                <span className="font-mono">{p2pTransferProgress}%</span>
+              </div>
+              <div className="w-full bg-emerald-200/70 rounded-full h-2 overflow-hidden">
+                <div
+                  className="bg-emerald-600 h-2 rounded-full transition-all duration-150"
+                  style={{ width: `${p2pTransferProgress}%` }}
+                />
+              </div>
+              <p className="text-[10px] text-emerald-700">
+                Transferring peer-to-peer via WebRTC DataChannel chunking.
+              </p>
+            </div>
+          )}
+
           {/* Dropzone */}
           <div
             {...getRootProps()}
@@ -187,10 +237,12 @@ export function FileTransferPanel({
 
             <div className="space-y-0.5">
               <p className="text-xs md:text-sm font-semibold text-slate-800">
-                {isDragActive ? "Drop files to upload instantly" : "Click or drag files to upload"}
+                {isDragActive ? "Drop files to transfer" : "Click or drag files to share"}
               </p>
               <p className="text-[11px] text-slate-500">
-                Documents, images, code &bull; Max 25MB per file
+                {isDirectP2P
+                  ? "Direct peer-to-peer &bull; Max 25MB per file"
+                  : "Documents, images, code &bull; Max 25MB per file"}
               </p>
             </div>
 
@@ -198,7 +250,7 @@ export function FileTransferPanel({
               <div className="absolute inset-0 bg-white/90 backdrop-blur-xs flex items-center justify-center rounded-xl z-10">
                 <div className="flex items-center gap-2.5 bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-medium shadow-lg">
                   <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>Uploading to session...</span>
+                  <span>Transferring file...</span>
                 </div>
               </div>
             )}
@@ -226,7 +278,7 @@ export function FileTransferPanel({
                   <p className="text-xs">
                     {searchQuery
                       ? "No files matching your search"
-                      : "No files uploaded to this session yet"}
+                      : "No files shared in this room yet"}
                   </p>
                 </div>
               ) : (
@@ -241,12 +293,19 @@ export function FileTransferPanel({
                           {getFileIcon(file.mimeType, file.originalName)}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p
-                            className="font-medium text-xs text-slate-900 truncate leading-snug"
-                            title={file.originalName}
-                          >
-                            {file.originalName}
-                          </p>
+                          <div className="flex items-center gap-1.5">
+                            <p
+                              className="font-medium text-xs text-slate-900 truncate leading-snug"
+                              title={file.originalName}
+                            >
+                              {file.originalName}
+                            </p>
+                            {file.isP2P && (
+                              <span className="shrink-0 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded">
+                                P2P
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[11px] text-slate-500 font-mono">
                             {formatBytes(file.size)} &bull;{" "}
                             {formatDistanceToNow(new Date(file.uploadedAt || Date.now()), {
@@ -277,7 +336,7 @@ export function FileTransferPanel({
                           asChild
                         >
                           <a
-                            href={getDownloadUrl(file.id)}
+                            href={file.blobUrl || getDownloadUrl(file.id)}
                             download={file.originalName}
                             target="_blank"
                             rel="noreferrer"
@@ -304,14 +363,14 @@ export function FileTransferPanel({
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-500 font-mono">
               {previewFile ? formatBytes(previewFile.size) : ""} &bull;{" "}
-              {previewFile?.mimeType}
+              {previewFile?.mimeType} {previewFile?.isP2P ? "• Direct P2P" : ""}
             </DialogDescription>
           </DialogHeader>
 
           <div className="flex-1 overflow-auto py-3 min-h-[200px] flex items-center justify-center">
             {previewFile && isImagePreview(previewFile) && (
               <img
-                src={getPreviewUrl(previewFile.id)}
+                src={previewFile.blobUrl || getPreviewUrl(previewFile.id)}
                 alt={previewFile.originalName}
                 className="max-h-[60vh] max-w-full object-contain rounded-lg shadow-xs"
               />
@@ -319,7 +378,7 @@ export function FileTransferPanel({
 
             {previewFile && isPdfPreview(previewFile) && (
               <iframe
-                src={getPreviewUrl(previewFile.id)}
+                src={previewFile.blobUrl || getPreviewUrl(previewFile.id)}
                 title={previewFile.originalName}
                 className="w-full h-[60vh] rounded-lg border border-slate-200"
               />
@@ -365,7 +424,7 @@ export function FileTransferPanel({
             {previewFile && (
               <Button size="sm" className="text-xs rounded-lg bg-slate-900 hover:bg-slate-800" asChild>
                 <a
-                  href={getDownloadUrl(previewFile.id)}
+                  href={previewFile.blobUrl || getDownloadUrl(previewFile.id)}
                   download={previewFile.originalName}
                   target="_blank"
                   rel="noreferrer"

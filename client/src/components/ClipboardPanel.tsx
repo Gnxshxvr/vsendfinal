@@ -18,12 +18,14 @@ interface ClipboardPanelProps {
   initialContent: string | null;
   onSend: (content: string) => void;
   isConnected: boolean;
+  isDirectP2P?: boolean;
 }
 
 export function ClipboardPanel({
   initialContent,
   onSend,
   isConnected,
+  isDirectP2P = false,
 }: ClipboardPanelProps) {
   const [content, setContent] = useState("");
   const [copied, setCopied] = useState(false);
@@ -201,10 +203,15 @@ export function ClipboardPanel({
                 <RefreshCw className="w-3 h-3 animate-spin text-indigo-600" />
                 Syncing...
               </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
+            ) : isDirectP2P ? (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/80">
                 <Check className="w-3 h-3 text-emerald-600" />
-                Live Synced
+                ⚡ P2P Direct
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200/60">
+                <Check className="w-3 h-3 text-blue-600" />
+                Relay Synced
               </span>
             )}
 

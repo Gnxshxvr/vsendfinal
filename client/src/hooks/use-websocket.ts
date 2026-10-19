@@ -4,15 +4,20 @@ import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@shared/routes";
 import { WS_EVENTS } from "@shared/schema";
 
+type WebSocketOptions = {
+  onSignalingMessage?: (message: any) => void;
+};
+
 type WebSocketHook = {
   isConnected: boolean;
   deviceCount: number;
   sendClipboard: (content: string) => void;
+  sendSignalingMessage: (message: any) => void;
   lastClipboard: string | null;
   error: string | null;
 };
 
-export function useWebSocket(code: string): WebSocketHook {
+export function useWebSocket(code: string, options?: WebSocketOptions): WebSocketHook {
   const [isConnected, setIsConnected] = useState(false);
   const [deviceCount, setDeviceCount] = useState(1);
   const [error, setError] = useState<string | null>(null);
@@ -20,13 +25,16 @@ export function useWebSocket(code: string): WebSocketHook {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isUnmountedRef = useRef(false);
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
+
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const connect = useCallback(() => {
     if (!code || isUnmountedRef.current) return;
 
-    // Determine WebSocket URL
+    // Determine WebSocket URL dynamically from current window host
     let wsUrl = import.meta.env.VITE_WS_URL;
     if (!wsUrl) {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -64,6 +72,19 @@ export function useWebSocket(code: string): WebSocketHook {
               if (typeof message.count === "number") {
                 setDeviceCount(message.count);
               }
+              break;
+
+            case WS_EVENTS.PEER_JOINED:
+              if (typeof message.count === "number") {
+                setDeviceCount(message.count);
+              }
+              optionsRef.current?.onSignalingMessage?.(message);
+              break;
+
+            case WS_EVENTS.WEBRTC_OFFER:
+            case WS_EVENTS.WEBRTC_ANSWER:
+            case WS_EVENTS.WEBRTC_ICE_CANDIDATE:
+              optionsRef.current?.onSignalingMessage?.(message);
               break;
 
             case WS_EVENTS.CLIPBOARD_UPDATE:
@@ -156,5 +177,18 @@ export function useWebSocket(code: string): WebSocketHook {
     }
   }, []);
 
-  return { isConnected, deviceCount, sendClipboard, lastClipboard, error };
+  const sendSignalingMessage = useCallback((message: any) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify(message));
+    }
+  }, []);
+
+  return {
+    isConnected,
+    deviceCount,
+    sendClipboard,
+    sendSignalingMessage,
+    lastClipboard,
+    error,
+  };
 }
