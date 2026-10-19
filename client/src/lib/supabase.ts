@@ -1,17 +1,23 @@
 import { createClient } from "@supabase/supabase-js";
 
 // Client-side Supabase client with anon key
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://ndbercohymnqzwcdrllg.supabase.co";
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5kYmVyY29oeW1ucXp3Y2RybGxnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk4MzU2MjIsImV4cCI6MjA4NTQxMTYyMn0.3RH5f0I29X1t3sdejFPjeNbE_rwCnwZGaVW5LYOEkOg";
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "";
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const isClientSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
-// Clipboard sync with Supabase Realtime
+export const supabase = isClientSupabaseConfigured
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null;
+
+// Clipboard sync with Supabase Realtime (optional fallback if Supabase is configured)
 export function subscribeToClipboard(
   sessionCode: string,
   onClipboardUpdate: (content: string) => void,
   onFileUploaded: (file: { id: number; original_name: string }) => void
 ) {
+  if (!supabase) return null;
+
   const channel = supabase
     .channel(`session:${sessionCode}`)
     .on(
@@ -34,6 +40,7 @@ export function subscribeToClipboard(
 }
 
 export function sendClipboardUpdate(sessionCode: string, content: string) {
+  if (!supabase) return Promise.resolve(null);
   return supabase.channel(`session:${sessionCode}`).send({
     type: "broadcast",
     event: "clipboard_update",
@@ -42,6 +49,7 @@ export function sendClipboardUpdate(sessionCode: string, content: string) {
 }
 
 export function sendFileUploaded(sessionCode: string, file: { id: number; original_name: string }) {
+  if (!supabase) return Promise.resolve(null);
   return supabase.channel(`session:${sessionCode}`).send({
     type: "broadcast",
     event: "file_uploaded",

@@ -1,10 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
 
 // Supabase client for serverless
-const supabaseUrl = process.env.SUPABASE_URL || "https://ndbercohymnqzwcdrllg.supabase.co";
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5kYmVyY29oeW1ucXp3Y2RybGxnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTgzNTYyMiwiZXhwIjoyMDg1NDExNjIyfQ.M0J_2_92xOZa0DaQeg5FdEAwguX9sqDfG3cXgYu11kE";
+const supabaseUrl = process.env.SUPABASE_URL || "";
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+
 
 function generateCode(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -14,6 +15,13 @@ export async function POST(request: Request) {
   try {
     const code = generateCode();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+    if (!supabase) {
+      return new Response(JSON.stringify({ message: "Database service not configured" }), {
+        status: 503,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
 
     const { data, error } = await supabase
       .from("sessions")
@@ -65,6 +73,13 @@ export async function GET(request: Request, context: any) {
   }
   
   try {
+    if (!supabase) {
+      return new Response(JSON.stringify({ message: "Database service not configured" }), {
+        status: 503,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     const { data, error } = await supabase
       .from("sessions")
       .select("*")

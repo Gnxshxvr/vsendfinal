@@ -1,20 +1,18 @@
 import { createClient } from "@supabase/supabase-js";
 
-// Server-side Supabase client with service role key
-const supabaseUrl = process.env.SUPABASE_URL || "https://ndbercohymnqzwcdrllg.supabase.co";
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5kYmVyY29oeW1ucXp3Y2RybGxnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTgzNTYyMiwiZXhwIjoyMDg1NDExNjIyfQ.M0J_2_92xOZa0DaQeg5FdEAwguX9sqDfG3cXgYu11kE";
+// Check if Supabase is properly configured via environment variables
+export const isSupabaseConfigured = Boolean(
+  process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-});
-
-// Database helper functions using Supabase directly
-import { sessions, files } from "@shared/schema";
-import { eq, and, gt } from "drizzle-orm";
-import { db } from "./db";
+export const supabaseAdmin = isSupabaseConfigured
+  ? createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    })
+  : null;
 
 export interface SessionData {
   id: number;
@@ -35,14 +33,12 @@ export interface FileData {
   uploaded_at: Date;
 }
 
-// Session operations
 export async function createSession(): Promise<SessionData> {
-  // Generate 6-digit code
-  let code: string;
-  do {
-    code = Math.floor(100000 + Math.random() * 900000).toString();
-  } while (false); // Simplified - in production check for duplicates
+  if (!supabaseAdmin) {
+    throw new Error("Supabase is not configured");
+  }
 
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
   const { data, error } = await supabaseAdmin
@@ -55,13 +51,15 @@ export async function createSession(): Promise<SessionData> {
     .single();
 
   if (error) {
-    throw new Error(`Failed to create session: ${error.message}`);
+    throw new Error(`Failed to create session in Supabase: ${error.message}`);
   }
 
   return data as SessionData;
 }
 
 export async function getSessionByCode(code: string): Promise<SessionData | null> {
+  if (!supabaseAdmin) return null;
+
   const { data, error } = await supabaseAdmin
     .from("sessions")
     .select("*")
@@ -85,6 +83,10 @@ export async function saveFile(fileData: {
   cloudinaryPublicId: string;
   resourceType: string;
 }): Promise<FileData> {
+  if (!supabaseAdmin) {
+    throw new Error("Supabase is not configured");
+  }
+
   const { data, error } = await supabaseAdmin
     .from("files")
     .insert({
@@ -100,13 +102,15 @@ export async function saveFile(fileData: {
     .single();
 
   if (error) {
-    throw new Error(`Failed to save file: ${error.message}`);
+    throw new Error(`Failed to save file to Supabase: ${error.message}`);
   }
 
   return data as FileData;
 }
 
 export async function getFiles(sessionId: number): Promise<FileData[]> {
+  if (!supabaseAdmin) return [];
+
   const { data, error } = await supabaseAdmin
     .from("files")
     .select("*")
@@ -121,6 +125,8 @@ export async function getFiles(sessionId: number): Promise<FileData[]> {
 }
 
 export async function getFile(fileId: number): Promise<FileData | null> {
+  if (!supabaseAdmin) return null;
+
   const { data, error } = await supabaseAdmin
     .from("files")
     .select("*")

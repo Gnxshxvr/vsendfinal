@@ -2,23 +2,35 @@ import { createClient } from "@supabase/supabase-js";
 import { v2 as cloudinary } from "cloudinary";
 
 // Supabase client for serverless
-const supabaseUrl = process.env.SUPABASE_URL || "https://ndbercohymnqzwcdrllg.supabase.co";
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "sb_secret_hU1qN082CKRfFJpUXRwAcg_xWK3k1S4";
+const supabaseUrl = process.env.SUPABASE_URL || "";
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
 // Configure Cloudinary
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || "dxy0ypkrr",
-  api_key: process.env.CLOUDINARY_API_KEY || "139762346665925",
-  api_secret: process.env.CLOUDINARY_API_SECRET || "yQHZCkS8JKtruzeHmdyuY73F_BM",
-});
+if (process.env.CLOUDINARY_URL) {
+  cloudinary.config();
+} else if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  });
+}
+
 
 // GET /api/files/[code] - List files
 export async function GET(request: Request, { params }: { params: { code: string } }) {
   const code = Array.isArray(params.code) ? params.code[0] : params.code;
   
   try {
+    if (!supabase) {
+      return new Response(JSON.stringify({ message: "Database service not configured" }), {
+        status: 503,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     // Get session
     const { data: session } = await supabase
       .from("sessions")
@@ -66,6 +78,13 @@ export async function POST(request: Request, { params }: { params: { code: strin
   const code = Array.isArray(params.code) ? params.code[0] : params.code;
   
   try {
+    if (!supabase) {
+      return new Response(JSON.stringify({ message: "Database service not configured" }), {
+        status: 503,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     // Get session
     const { data: session } = await supabase
       .from("sessions")

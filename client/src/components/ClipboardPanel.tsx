@@ -1,9 +1,18 @@
-import { useState, useEffect } from "react";
-import { Copy, Check, Send } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import {
+  Copy,
+  Check,
+  Send,
+  Trash2,
+  ClipboardList,
+  Wifi,
+  WifiOff,
+  RefreshCw,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { motion } from "framer-motion";
+import { useToast } from "@/hooks/use-toast";
 
 interface ClipboardPanelProps {
   initialContent: string | null;
@@ -11,89 +20,205 @@ interface ClipboardPanelProps {
   isConnected: boolean;
 }
 
-export function ClipboardPanel({ initialContent, onSend, isConnected }: ClipboardPanelProps) {
+export function ClipboardPanel({
+  initialContent,
+  onSend,
+  isConnected,
+}: ClipboardPanelProps) {
   const [content, setContent] = useState("");
   const [copied, setCopied] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<"synced" | "syncing" | "idle">("idle");
+  const lastSentRef = useRef<string>("");
+  const isIncomingUpdateRef = useRef(false);
+  const { toast } = useToast();
 
-  // Sync incoming content
+  // Sync incoming content from remote device
   useEffect(() => {
-    if (initialContent !== null) {
+    if (initialContent !== null && initialContent !== content) {
+      isIncomingUpdateRef.current = true;
       setContent(initialContent);
+      lastSentRef.current = initialContent;
+      setSyncStatus("synced");
     }
   }, [initialContent]);
 
+  // Debounced auto-sync to avoid flooding
+  useEffect(() => {
+    if (isIncomingUpdateRef.current) {
+      isIncomingUpdateRef.current = false;
+      return;
+    }
+
+    if (content === lastSentRef.current) {
+      return;
+    }
+
+    if (!isConnected) {
+      return;
+    }
+
+    setSyncStatus("syncing");
+    const timer = setTimeout(() => {
+      onSend(content);
+      lastSentRef.current = content;
+      setSyncStatus("synced");
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [content, isConnected, onSend]);
+
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (!content) return;
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      toast({
+        title: "Copied to Clipboard",
+        description: "Clipboard text copied successfully.",
+      });
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast({
+        variant: "destructive",
+        title: "Copy Failed",
+        description: "Unable to copy to device clipboard.",
+      });
+    }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newValue = e.target.value;
-    setContent(newValue);
-    // Debounce is handled by the user pressing send or we could debounce here
-    // For this app, let's auto-send with debounce to make it feel "instant"
+  const handleManualSend = () => {
+    if (!isConnected) {
+      toast({
+        variant: "destructive",
+        title: "Offline",
+        description: "Cannot send while disconnected from session.",
+      });
+      return;
+    }
+    onSend(content);
+    lastSentRef.current = content;
+    setSyncStatus("synced");
+    toast({
+      title: "Pushed to Devices",
+      description: "Clipboard content sent to all connected peers.",
+      duration: 1500,
+    });
   };
-  
-  // Debounce send effect
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (content !== initialContent && isConnected) {
-        onSend(content);
-      }
-    }, 500); // 500ms debounce
-    
-    return () => clearTimeout(timer);
-  }, [content, isConnected, onSend, initialContent]);
+
+  const handleClear = () => {
+    setContent("");
+    if (isConnected) {
+      onSend("");
+      lastSentRef.current = "";
+      setSyncStatus("synced");
+    }
+  };
+
+  const charCount = content.length;
+  const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
+  const lineCount = content ? content.split("\n").length : 0;
 
   return (
-    <Card className="h-full border-0 shadow-lg shadow-black/5 flex flex-col overflow-hidden bg-white/50 backdrop-blur-sm">
-      <CardHeader className="border-b border-border/50 bg-white/50 px-6 py-4">
+    <Card className="h-full border border-slate-200/90 shadow-sm flex flex-col overflow-hidden bg-white rounded-2xl">
+      {/* Header */}
+      <CardHeader className="border-b border-slate-100 bg-slate-50/70 px-5 py-3.5">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg font-medium flex items-center gap-2">
-            <span className="bg-primary/10 text-primary p-2 rounded-lg">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>
+          <CardTitle className="text-sm font-semibold flex items-center gap-2 text-slate-900">
+            <span className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100/80">
+              <ClipboardList className="w-4 h-4" />
             </span>
-            Universal Clipboard
+            <span>Universal Clipboard</span>
           </CardTitle>
-          <div className="flex gap-2">
+
+          <div className="flex items-center gap-1.5">
             <Button
               variant="outline"
               size="sm"
               onClick={handleCopy}
               disabled={!content}
-              className="text-xs font-medium"
+              className="h-8 px-2.5 text-xs font-medium rounded-lg border-slate-300 hover:bg-slate-100 cursor-pointer text-slate-700"
+              title="Copy to local clipboard"
             >
-              {copied ? <Check className="w-4 h-4 mr-1.5" /> : <Copy className="w-4 h-4 mr-1.5" />}
-              {copied ? "Copied" : "Copy"}
+              {copied ? (
+                <>
+                  <Check className="w-3.5 h-3.5 mr-1 text-emerald-600" />
+                  <span>Copied</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5 mr-1" />
+                  <span>Copy</span>
+                </>
+              )}
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleClear}
+              disabled={!content}
+              className="h-8 px-2 text-xs font-medium rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 cursor-pointer"
+              title="Clear clipboard"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
             </Button>
           </div>
         </div>
       </CardHeader>
-      <CardContent className="flex-1 p-0 relative">
+
+      {/* Editor Body */}
+      <CardContent className="flex-1 p-0 flex flex-col relative min-h-[220px]">
         <Textarea
           value={content}
-          onChange={handleChange}
-          placeholder="Type or paste here to sync instantly..."
-          className="h-full w-full resize-none border-0 focus-visible:ring-0 p-6 text-base leading-relaxed bg-transparent"
-          aria-label="Universal clipboard text editor for cross-device sync"
+          onChange={(e) => setContent(e.target.value)}
+          placeholder="Type, paste code, notes, or links here to sync in real time..."
+          className="flex-1 w-full resize-none border-0 focus-visible:ring-0 p-5 text-sm md:text-base leading-relaxed bg-transparent font-mono text-slate-800 placeholder:text-slate-400 placeholder:font-sans"
+          aria-label="Universal clipboard text editor"
         />
-        <div className="absolute bottom-4 right-4">
-           {!isConnected && (
-             <span className="text-xs text-muted-foreground bg-secondary/80 px-2 py-1 rounded-md">
-               Connecting...
-             </span>
-           )}
-           {isConnected && (
-             <motion.div 
-               initial={{ opacity: 0 }} 
-               animate={{ opacity: 1 }}
-               className="text-xs text-green-600 bg-green-100/50 px-2 py-1 rounded-md flex items-center gap-1"
-             >
-               <span className="w-1.5 h-1.5 rounded-full bg-green-600 animate-pulse" />
-               Synced
-             </motion.div>
-           )}
+
+        {/* Footer info & manual sync action */}
+        <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-2 flex items-center justify-between text-xs text-slate-500">
+          <div className="flex items-center gap-3 font-mono text-[11px]">
+            <span>{charCount} chars</span>
+            <span>&bull;</span>
+            <span>{wordCount} words</span>
+            {lineCount > 1 && (
+              <>
+                <span>&bull;</span>
+                <span>{lineCount} lines</span>
+              </>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            {!isConnected ? (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/60">
+                <WifiOff className="w-3 h-3 text-amber-600" />
+                Connecting...
+              </span>
+            ) : syncStatus === "syncing" ? (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">
+                <RefreshCw className="w-3 h-3 animate-spin text-indigo-600" />
+                Syncing...
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
+                <Check className="w-3 h-3 text-emerald-600" />
+                Live Synced
+              </span>
+            )}
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleManualSend}
+              disabled={!isConnected || !content}
+              className="h-7 px-2 text-[11px] font-medium rounded-md border-slate-300 hover:bg-slate-100 cursor-pointer"
+            >
+              <Send className="w-3 h-3 mr-1" />
+              Push
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>

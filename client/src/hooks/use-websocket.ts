@@ -2,10 +2,11 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@shared/routes";
-import { supabase, subscribeToClipboard, sendClipboardUpdate } from "@/lib/supabase";
+import { WS_EVENTS } from "@shared/schema";
 
 type WebSocketHook = {
   isConnected: boolean;
+  deviceCount: number;
   sendClipboard: (content: string) => void;
   lastClipboard: string | null;
   error: string | null;
@@ -13,54 +14,147 @@ type WebSocketHook = {
 
 export function useWebSocket(code: string): WebSocketHook {
   const [isConnected, setIsConnected] = useState(false);
+  const [deviceCount, setDeviceCount] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [lastClipboard, setLastClipboard] = useState<string | null>(null);
-  const channelRef = useRef<any>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isUnmountedRef = useRef(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  useEffect(() => {
-    if (!code) return;
+  const connect = useCallback(() => {
+    if (!code || isUnmountedRef.current) return;
 
-    // Subscribe to Supabase Realtime channel
-    const channel = subscribeToClipboard(
-      code,
-      // Clipboard update callback
-      (content: string) => {
-        setLastClipboard(content);
-        toast({
-          title: "Clipboard Updated",
-          description: "New content received from remote device.",
-          duration: 2000,
-        });
-      },
-      // File uploaded callback
-      (file: { id: number; original_name: string }) => {
-        toast({
-          title: "File Received",
-          description: `New file available: ${file.original_name}`,
-        });
-        // Refresh file list
-        queryClient.invalidateQueries({ queryKey: [api.files.list.path, code] });
-      }
-    );
+    // Determine WebSocket URL
+    let wsUrl = import.meta.env.VITE_WS_URL;
+    if (!wsUrl) {
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      wsUrl = `${protocol}//${window.location.host}/ws`;
+    }
 
-    channelRef.current = channel;
+    try {
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
 
-    // Set connected after a short delay (Supabase connects immediately)
-    setIsConnected(true);
-    setError(null);
+      ws.onopen = () => {
+        if (isUnmountedRef.current) {
+          ws.close();
+          return;
+        }
+        setIsConnected(true);
+        setError(null);
+        // Join the session room
+        ws.send(JSON.stringify({ type: WS_EVENTS.JOIN, code }));
+      };
 
-    return () => {
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-      }
-    };
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+
+          switch (message.type) {
+            case WS_EVENTS.JOINED:
+              setIsConnected(true);
+              if (typeof message.count === "number") {
+                setDeviceCount(message.count);
+              }
+              break;
+
+            case WS_EVENTS.PRESENCE:
+              if (typeof message.count === "number") {
+                setDeviceCount(message.count);
+              }
+              break;
+
+            case WS_EVENTS.CLIPBOARD_UPDATE:
+              if (typeof message.content === "string") {
+                setLastClipboard(message.content);
+                toast({
+                  title: "Clipboard Synced",
+                  description: "Text received from connected device.",
+                  duration: 2500,
+                });
+              }
+              break;
+
+            case WS_EVENTS.FILE_UPLOADED:
+              toast({
+                title: "New File Received",
+                description: message.file?.originalName
+                  ? `"${message.file.originalName}" is ready to download.`
+                  : "A new file was shared.",
+                duration: 3000,
+              });
+              // Instantly refresh files list in cache
+              queryClient.invalidateQueries({
+                queryKey: [api.files.list.path, code],
+              });
+              break;
+
+            case WS_EVENTS.ERROR:
+              setError(message.message || "Session error");
+              toast({
+                variant: "destructive",
+                title: "Session Error",
+                description: message.message,
+              });
+              break;
+          }
+        } catch (e) {
+          console.error("Failed to parse WebSocket message:", e);
+        }
+      };
+
+      ws.onerror = (e) => {
+        console.warn("WebSocket encounter:", e);
+        setError("WebSocket connection failed");
+        setIsConnected(false);
+      };
+
+      ws.onclose = () => {
+        setIsConnected(false);
+        wsRef.current = null;
+
+        // Attempt reconnection after 3 seconds if component is still active
+        if (!isUnmountedRef.current) {
+          reconnectTimeoutRef.current = setTimeout(() => {
+            connect();
+          }, 3000);
+        }
+      };
+    } catch (err) {
+      console.error("WebSocket initialization error:", err);
+      setIsConnected(false);
+      setError("Failed to initialize WebSocket");
+    }
   }, [code, toast, queryClient]);
 
-  const sendClipboard = useCallback((content: string) => {
-    sendClipboardUpdate(code, content);
-  }, [code]);
+  useEffect(() => {
+    isUnmountedRef.current = false;
+    connect();
 
-  return { isConnected, sendClipboard, lastClipboard, error };
+    return () => {
+      isUnmountedRef.current = true;
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (wsRef.current) {
+        wsRef.current.close(1000, "Component unmounted");
+        wsRef.current = null;
+      }
+    };
+  }, [connect]);
+
+  const sendClipboard = useCallback((content: string) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: WS_EVENTS.CLIPBOARD_UPDATE,
+          content,
+        })
+      );
+    }
+  }, []);
+
+  return { isConnected, deviceCount, sendClipboard, lastClipboard, error };
 }

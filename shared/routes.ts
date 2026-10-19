@@ -1,6 +1,5 @@
-
 import { z } from "zod";
-import { insertSessionSchema, insertFileSchema, sessions, files } from "./schema";
+import { sessions, files } from "./schema";
 
 export const errorSchemas = {
   notFound: z.object({ message: z.string() }),
@@ -26,12 +25,19 @@ export const api = {
         404: errorSchemas.notFound,
       },
     },
+    leave: {
+      method: "POST" as const,
+      path: "/api/sessions/:code/leave",
+      responses: {
+        200: z.object({ success: z.boolean(), message: z.string() }),
+        404: errorSchemas.notFound,
+      },
+    },
   },
   files: {
     upload: {
       method: "POST" as const,
       path: "/api/files/:code",
-      // Input is multipart/form-data, handled by multer/express
       responses: {
         201: z.custom<typeof files.$inferSelect>(),
         404: errorSchemas.notFound,
@@ -49,7 +55,15 @@ export const api = {
       method: "GET" as const,
       path: "/api/download/:fileId",
       responses: {
-        200: z.any(), // File stream
+        200: z.any(), // File stream or redirect
+        404: errorSchemas.notFound,
+      },
+    },
+    preview: {
+      method: "GET" as const,
+      path: "/api/preview/:fileId",
+      responses: {
+        200: z.any(), // File preview stream or json
         404: errorSchemas.notFound,
       },
     },
@@ -61,7 +75,7 @@ export function buildUrl(path: string, params?: Record<string, string | number>)
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
       if (url.includes(`:${key}`)) {
-        url = url.replace(`:${key}`, String(value));
+        url = url.replace(`:${key}`, encodeURIComponent(String(value)));
       }
     });
   }

@@ -1,12 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
 
+const API_BASE = import.meta.env.VITE_API_URL || "";
+export const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+
 export function useSessionFiles(code: string) {
   return useQuery({
     queryKey: [api.files.list.path, code],
     queryFn: async () => {
       if (!code) return [];
-      const url = buildUrl(api.files.list.path, { code });
+      const url = `${API_BASE}${buildUrl(api.files.list.path, { code })}`;
       const res = await fetch(url);
       if (res.status === 404) return [];
       if (!res.ok) throw new Error("Failed to fetch files");
@@ -21,24 +24,44 @@ export function useUploadFile() {
 
   return useMutation({
     mutationFn: async ({ code, file }: { code: string; file: File }) => {
+      if (file.size > MAX_FILE_SIZE) {
+        throw new Error(
+          `"${file.name}" is ${(file.size / (1024 * 1024)).toFixed(1)}MB, exceeding the 50MB limit.`
+        );
+      }
+
       const formData = new FormData();
       formData.append("file", file);
 
-      const url = buildUrl(api.files.upload.path, { code });
+      const url = `${API_BASE}${buildUrl(api.files.upload.path, { code })}`;
       const res = await fetch(url, {
         method: api.files.upload.method,
-        body: formData, // Browser sets Content-Type to multipart/form-data automatically
+        body: formData,
       });
 
-      if (!res.ok) throw new Error("Failed to upload file");
+      if (!res.ok) {
+        let msg = "Failed to upload file";
+        try {
+          const err = await res.json();
+          msg = err.message || msg;
+        } catch {}
+        throw new Error(msg);
+      }
+
       return api.files.upload.responses[201].parse(await res.json());
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: [api.files.list.path, variables.code] });
+      queryClient.invalidateQueries({
+        queryKey: [api.files.list.path, variables.code],
+      });
     },
   });
 }
 
 export function getDownloadUrl(fileId: number) {
-  return buildUrl(api.files.download.path, { fileId });
+  return `${API_BASE}${buildUrl(api.files.download.path, { fileId })}`;
+}
+
+export function getPreviewUrl(fileId: number) {
+  return `${API_BASE}${buildUrl(api.files.preview.path, { fileId })}`;
 }
