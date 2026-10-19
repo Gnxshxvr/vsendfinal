@@ -1,5 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
+import os from "os";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -101,7 +102,19 @@ app.use((req, res, next) => {
   }
 
   httpServer.listen(listenOptions, () => {
-    log(`serving on port ${port}`);
+    log(`VSend server listening on port ${port}`);
+    console.log(`\n  ➜  Local:   http://localhost:${port}/`);
+
+    // Detect and log non-internal IPv4 LAN addresses
+    const interfaces = os.networkInterfaces();
+    for (const name of Object.keys(interfaces)) {
+      for (const iface of interfaces[name] || []) {
+        if (iface.family === "IPv4" && !iface.internal) {
+          console.log(`  ➜  Network: http://${iface.address}:${port}/  (Open this on your phone!)`);
+        }
+      }
+    }
+    console.log("");
   });
 })();
 

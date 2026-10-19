@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
-export const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+export const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
 
 export function useSessionFiles(code: string) {
   return useQuery({
@@ -26,7 +26,7 @@ export function useUploadFile() {
     mutationFn: async ({ code, file }: { code: string; file: File }) => {
       if (file.size > MAX_FILE_SIZE) {
         throw new Error(
-          `"${file.name}" is ${(file.size / (1024 * 1024)).toFixed(1)}MB, exceeding the 50MB limit.`
+          `"${file.name}" is ${(file.size / (1024 * 1024)).toFixed(1)}MB, exceeding the 25MB limit.`
         );
       }
 

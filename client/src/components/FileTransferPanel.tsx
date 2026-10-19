@@ -190,7 +190,7 @@ export function FileTransferPanel({
                 {isDragActive ? "Drop files to upload instantly" : "Click or drag files to upload"}
               </p>
               <p className="text-[11px] text-slate-500">
-                Documents, images, code &bull; Max 50MB per file
+                Documents, images, code &bull; Max 25MB per file
               </p>
             </div>
 
