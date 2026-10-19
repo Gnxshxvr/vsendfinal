@@ -9,6 +9,7 @@
     "start": "node dist/index.cjs",
     "check": "tsc",
     "test": "node test/e2e-test.mjs",
+    "test:serverless": "tsx test/test-serverless.ts",
     "db:push": "drizzle-kit push"
   },
   "dependencies": {

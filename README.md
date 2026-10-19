@@ -113,20 +113,49 @@ When configured, the backend automatically serves these credentials to clients v
 
 ---
 
-## Deploying to Public Cloud (HTTPS / WSS)
+## Deploying to Vercel & Public Cloud
 
-Modern browsers require secure contexts (`https://` and `wss://`) for certain WebRTC features and clipboard APIs when accessing non-localhost URLs.
+### Architecture Considerations for Vercel
 
-### Deployment Options:
-- **Render / Railway / Fly.io / Heroku**:
-  1. Push code to your Git repository.
-  2. Set build command: `npm run build`
-  3. Set start command: `npm start`
-  4. The platform provides an automatic SSL certificate (`https://your-app.up.railway.app`) which automatically handles HTTPS and WSS.
-- **VPS (Ubuntu / Debian + Nginx + Let's Encrypt)**:
-  - Run the built app via `pm2 start dist/index.cjs --name vsend`.
-  - Configure Nginx reverse proxy with `proxy_pass http://127.0.0.1:5000;` and enable WebSocket headers (`Upgrade` and `Connection: upgrade`).
+| Component | Vercel Serverless Compatibility | Recommended Production Setup |
+| :--- | :--- | :--- |
+| **Frontend (React 18 / Vite)** | **100% Compatible** | Hosted on Vercel Edge CDN |
+| **REST API (`/api/*`)** | **Compatible via `api/index.ts`** (with ephemeral state & 4.5MB payload limit) | Can run on Vercel or Persistent Node.js Backend |
+| **WebSocket Signaling (`/ws`)** | **Incompatible** (Vercel Serverless terminates HTTP connections and does not support persistent WebSockets) | Hosted on a persistent Node.js host (e.g. Render, Railway, Fly.io) |
+| **WebRTC Direct P2P Transfer** | **Data travels browser-to-browser** (unaffected by Vercel), but requires persistent WebSocket signaling to handshake | Signaling via persistent backend; files stream directly between peers |
 
+---
+
+### Recommended Deployment Setup: Vercel Frontend + Free Persistent Backend
+
+1. **Deploy Backend to Render (Free) or Railway**:
+   - Push repository to GitHub.
+   - Create a **Web Service** on [Render](https://render.com) or [Railway](https://railway.app).
+   - Build Command: `npm run build`
+   - Start Command: `npm start`
+   - Your backend will receive a public HTTPS/WSS URL (e.g., `https://vsend-backend.onrender.com`).
+
+2. **Deploy Frontend to Vercel**:
+   - Import your GitHub repository (`Gnxshxvr/VSend`) in Vercel.
+   - **Framework Preset**: Vite
+   - **Root Directory**: `./`
+   - **Build Command**: `npm run build`
+   - **Output Directory**: `dist/public`
+   - **Environment Variables**:
+     - `VITE_API_URL`: `https://vsend-backend.onrender.com`
+     - `VITE_WS_URL`: `wss://vsend-backend.onrender.com/ws`
+     - `NODE_ENV`: `production`
+
+---
+
+### Alternative: All-in-One Vercel Serverless Deployment
+
+If deploying solely on Vercel without an external server:
+- `vercel.json` routes `/api/(.*)` to the `api/index.ts` Serverless Function.
+- REST endpoints (`/api/sessions`, `/api/webrtc-config`) operate serverlessly.
+- *Note:* In-memory room state will not persist across different Lambda cold starts (use `DATABASE_URL` with a PostgreSQL provider like Supabase/Neon for persistence), and real-time WebSockets require a persistent signaling server.
+
+---
 ---
 
 ## Running the Automated Test Suite

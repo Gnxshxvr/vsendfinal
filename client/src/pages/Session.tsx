@@ -218,10 +218,17 @@ export default function Session() {
                         Server Relay
                       </span>
                     </>
+                  ) : wsError ? (
+                    <>
+                      <span className="w-2 h-2 rounded-full bg-rose-500" />
+                      <span className="text-rose-600 font-medium cursor-help" title={wsError}>
+                        Signaling Offline
+                      </span>
+                    </>
                   ) : (
                     <>
                       <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                      <span className="text-amber-600 font-medium">Reconnecting...</span>
+                      <span className="text-amber-600 font-medium">Connecting...</span>
                     </>
                   )}
                 </div>

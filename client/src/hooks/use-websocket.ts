@@ -128,7 +128,17 @@ export function useWebSocket(code: string, options?: WebSocketOptions): WebSocke
 
       ws.onerror = (e) => {
         console.warn("WebSocket encounter:", e);
-        setError("WebSocket connection failed");
+        if (
+          typeof window !== "undefined" &&
+          window.location.hostname.endsWith(".vercel.app") &&
+          !import.meta.env.VITE_WS_URL
+        ) {
+          setError(
+            "Vercel Serverless does not support persistent WebSockets. Set VITE_WS_URL in your Vercel Project Settings to your persistent backend (e.g. on Render or Railway)."
+          );
+        } else {
+          setError("WebSocket connection failed");
+        }
         setIsConnected(false);
       };
 
@@ -136,8 +146,13 @@ export function useWebSocket(code: string, options?: WebSocketOptions): WebSocke
         setIsConnected(false);
         wsRef.current = null;
 
-        // Attempt reconnection after 3 seconds if component is still active
-        if (!isUnmountedRef.current) {
+        // If on Vercel without a configured VITE_WS_URL, avoid rapid reconnection spam
+        const isVercelWithoutWs =
+          typeof window !== "undefined" &&
+          window.location.hostname.endsWith(".vercel.app") &&
+          !import.meta.env.VITE_WS_URL;
+
+        if (!isUnmountedRef.current && !isVercelWithoutWs) {
           reconnectTimeoutRef.current = setTimeout(() => {
             connect();
           }, 3000);

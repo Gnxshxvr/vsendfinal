@@ -2,6 +2,7 @@ import { Session, FileMetadata, InsertFile, sessions, files } from "@shared/sche
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
+import os from "os";
 import { db, isDbAvailable } from "./db";
 import { eq, and, gt, lt } from "drizzle-orm";
 import { deleteFromCloudinary } from "./cloudinary";
@@ -17,7 +18,9 @@ export interface IStorage {
   cleanupExpired(): Promise<{ sessionsDeleted: number; filesDeleted: number }>;
 }
 
-const uploadDir = path.join(process.cwd(), "uploads");
+const uploadDir = process.env.VERCEL
+  ? path.join(os.tmpdir(), "vsend-uploads")
+  : path.join(process.cwd(), "uploads");
 
 // Helper to safely delete local disk file
 function removeLocalFile(filename: string) {

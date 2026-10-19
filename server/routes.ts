@@ -8,12 +8,20 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
+import os from "os";
 import { isCloudinaryConfigured, uploadToCloudinary } from "./cloudinary";
 
-// Ensure uploads directory exists
-const uploadDir = path.resolve(process.cwd(), "uploads");
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+// Ensure uploads directory exists (use os.tmpdir() on serverless platforms like Vercel where process.cwd() is read-only)
+const uploadDir = process.env.VERCEL
+  ? path.join(os.tmpdir(), "vsend-uploads")
+  : path.resolve(process.cwd(), "uploads");
+
+try {
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+} catch (err) {
+  console.warn("Notice: Upload directory could not be created:", err);
 }
 
 // Simple in-memory rate limiter to protect against abuse
